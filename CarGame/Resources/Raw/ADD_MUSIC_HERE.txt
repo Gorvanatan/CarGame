@@ -1,0 +1,6 @@
+Place your background music file here as:
+  airwaves.mp3  (preferred)  OR  airwaves.wav
+
+Build Action should be MauiAsset (automatic for Resources/Raw).
+
+Note: Don't redistribute copyrighted music unless you have rights.

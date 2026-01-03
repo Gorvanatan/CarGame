@@ -29,8 +29,23 @@ public sealed class GameDrawable : IDrawable
         DrawPlayer(canvas);
         DrawEntities(canvas);
 
+        if (_engine.State.IsPaused && !_engine.State.IsGameOver)
+            DrawPaused(canvas, w, h);
+
         if (_engine.State.IsGameOver)
-            DrawGameOver(canvas, w, h);
+            DrawGameOver(canvas, w, h, _engine.State.IsNewHighScore);
+    }
+
+    private static void DrawPaused(ICanvas canvas, float w, float h)
+    {
+        // Dim the screen
+        canvas.FillColor = new Color(0, 0, 0, 0.45f);
+        canvas.FillRectangle(0, 0, w, h);
+
+        canvas.FontColor = Colors.White;
+        canvas.FontSize = 44;
+        canvas.DrawString("PAUSED", 0, h * 0.42f, w, 70,
+            HorizontalAlignment.Center, VerticalAlignment.Center);
     }
 
     private void DrawBackground(ICanvas canvas, float w, float h)
@@ -66,9 +81,11 @@ public sealed class GameDrawable : IDrawable
     {
         var p = _engine.State.Player;
 
-        if (Sprites.Player is not null)
+        var playerSprite = Sprites.GetCar(_engine.State.SelectedCarSprite) ?? Sprites.Player;
+
+        if (playerSprite is not null)
         {
-            canvas.DrawImage(Sprites.Player, (float)p.X, (float)p.Y, (float)p.Width, (float)p.Height);
+            canvas.DrawImage(playerSprite, (float)p.X, (float)p.Y, (float)p.Width, (float)p.Height);
             return;
         }
 
@@ -116,7 +133,7 @@ public sealed class GameDrawable : IDrawable
         }
     }
 
-    private static void DrawGameOver(ICanvas canvas, float w, float h)
+    private static void DrawGameOver(ICanvas canvas, float w, float h, bool newHighScore)
     {
         canvas.FontColor = Colors.White;
         canvas.FontSize = 44;
@@ -124,7 +141,15 @@ public sealed class GameDrawable : IDrawable
             HorizontalAlignment.Center, VerticalAlignment.Center);
 
         canvas.FontSize = 20;
-        canvas.DrawString("Tap to restart", 0, h * 0.46f, w, 40,
+        canvas.DrawString("Returning to menu...", 0, h * 0.46f, w, 40,
             HorizontalAlignment.Center, VerticalAlignment.Center);
+
+
+        if (newHighScore)
+        {
+            canvas.FontSize = 22;
+            canvas.DrawString("NEW HIGH SCORE!", 0, h * 0.52f, w, 40,
+                HorizontalAlignment.Center, VerticalAlignment.Center);
+        }
     }
 }

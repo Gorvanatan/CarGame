@@ -1,8 +1,19 @@
+using Microsoft.Maui.Storage;
+
 namespace CarGame.Game;
 
 public sealed class GameEngine
 {
     public GameState State { get; } = new();
+
+    // Raised when the player collects a coin (used for sound effects/UI)
+    public event Action? CoinCollected;
+
+    // Raised when the player takes damage (loses a life but is still alive)
+    public event Action? PlayerDamaged;
+
+    // Raised when the player dies (lives reach 0)
+    public event Action? PlayerDied;
 
     private readonly Random _rng = new();
 
@@ -36,12 +47,17 @@ public sealed class GameEngine
 
     public void Reset()
     {
+        // Preserve player selection across resets
+        var selectedCar = State.SelectedCarSprite;
+
         State.Entities.Clear();
 
         State.Lives = 3;
         State.IsGameOver = false;
+        State.IsPaused = false;
 
         State.ScorePrecise = 0;
+        State.CoinsThisRun = 0;
         State.BgScroll = 0;
 
         State.ScrollSpeed = 520;
@@ -54,6 +70,13 @@ public sealed class GameEngine
         _fuelSpawnT = 12.0;
 
         _hitCooldown = 0;
+
+        // Load persisted high score
+        State.HighScore = Preferences.Default.Get("highscore", 0);
+        State.IsNewHighScore = false;
+
+        // Restore selection (fallback to default)
+        State.SelectedCarSprite = string.IsNullOrWhiteSpace(selectedCar) ? "yellowcar.png" : selectedCar;
     }
 
     public void TryMovePlayerLane(int delta)
@@ -117,6 +140,7 @@ public sealed class GameEngine
         if (dt <= 0) return;
         if (State.ViewWidth <= 0 || State.ViewHeight <= 0) return;
         if (State.IsGameOver) return;
+        if (State.IsPaused) return;
 
         // Score increases the longer you survive
         State.ScorePrecise += dt * State.PointsPerSecond;
@@ -195,13 +219,30 @@ public sealed class GameEngine
                         _hitCooldown = 0.5;
 
                         if (State.Lives <= 0)
+                        {
+                            PlayerDied?.Invoke();
                             State.IsGameOver = true;
+
+                            // High score save
+                            if (State.Score > State.HighScore)
+                            {
+                                State.HighScore = State.Score;
+                                State.IsNewHighScore = true;
+                                Preferences.Default.Set("highscore", State.HighScore);
+                            }
+                        }
+                        else
+                        {
+                            PlayerDamaged?.Invoke();
+                        }
                     }
                     break;
 
                 case EntityKind.Coin:
                     State.Entities.RemoveAt(i);
                     State.ScorePrecise += 10; // +10 per coin
+                    State.CoinsThisRun += 1;
+                    CoinCollected?.Invoke();
                     break;
 
                 case EntityKind.Fuel:

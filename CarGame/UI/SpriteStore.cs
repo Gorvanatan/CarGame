@@ -8,6 +8,11 @@ namespace CarGame.UI;
 /// </summary>
 public sealed class SpriteStore
 {
+    private readonly Dictionary<string, GraphicsImage?> _cars = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Default player sprite (yellow car).
+    /// </summary>
     public GraphicsImage? Player { get; private set; }
     public GraphicsImage? Enemy  { get; private set; }
     public GraphicsImage? Coin   { get; private set; }
@@ -24,12 +29,29 @@ public sealed class SpriteStore
 
         // NOTE: These must be lowercase on Android.
         // Put these files in Resources/Raw with Build Action = MauiAsset.
-        Player = await LoadFromAppPackageAsync("yellowcar.png");
-        Enemy  = await LoadFromAppPackageAsync("redcar.png");
+        // Cars (player can choose from multiple)
+        _cars["yellowcar.png"] = await LoadFromAppPackageAsync("yellowcar.png");
+        // Player unlockable: Purple (replaces Red)
+        _cars["purplecar.png"] = await LoadFromAppPackageAsync("purplecar.png");
+
+        // Enemy sprite (kept as red)
+        _cars["redcar.png"]    = await LoadFromAppPackageAsync("redcar.png");
+        _cars["bluecar.png"]   = await LoadFromAppPackageAsync("bluecar.png");
+        _cars["greencar.png"]  = await LoadFromAppPackageAsync("greencar.png");
+
+        Player = _cars["yellowcar.png"]; // default
+        Enemy  = _cars["redcar.png"];    // enemy uses red car
         Coin   = await LoadFromAppPackageAsync("coin.jpg");
         Fuel   = await LoadFromAppPackageAsync("fuelcan.jpg");
 
         IsLoaded = true;
+    }
+
+    public GraphicsImage? GetCar(string? spriteFileName)
+    {
+        if (string.IsNullOrWhiteSpace(spriteFileName)) return Player;
+        if (_cars.TryGetValue(spriteFileName, out var img)) return img;
+        return Player;
     }
 
     private static async Task<GraphicsImage?> LoadFromAppPackageAsync(string filename)
