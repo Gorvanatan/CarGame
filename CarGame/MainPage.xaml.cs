@@ -1,24 +1,77 @@
-﻿namespace CarGame
+using CarGame.Game;
+using CarGame.UI;
+using System.Diagnostics;
+
+namespace CarGame;
+
+public partial class MainPage : ContentPage
 {
-    public partial class MainPage : ContentPage
+    private readonly GameEngine _engine = new();
+    private readonly GameDrawable _drawable;
+
+    private readonly IDispatcherTimer _timer;
+    private readonly Stopwatch _sw = new();
+
+    public MainPage()
     {
-        int count = 0;
+        InitializeComponent();
 
-        public MainPage()
+        _drawable = new GameDrawable(_engine);
+        GameView.Drawable = _drawable;
+
+        // Swipe gestures
+        var swipeLeft = new SwipeGestureRecognizer { Direction = SwipeDirection.Left };
+        swipeLeft.Swiped += (_, __) => _engine.TryMovePlayerLane(-1);
+
+        var swipeRight = new SwipeGestureRecognizer { Direction = SwipeDirection.Right };
+        swipeRight.Swiped += (_, __) => _engine.TryMovePlayerLane(+1);
+
+        // Tap to restart if game over
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += (_, __) =>
         {
-            InitializeComponent();
-        }
+            if (_engine.State.IsGameOver)
+                _engine.Reset();
+        };
 
-        private void OnCounterClicked(object? sender, EventArgs e)
+        GameView.GestureRecognizers.Add(swipeLeft);
+        GameView.GestureRecognizers.Add(swipeRight);
+        GameView.GestureRecognizers.Add(tap);
+
+        // Game loop (~60fps)
+        _timer = Dispatcher.CreateTimer();
+        _timer.Interval = TimeSpan.FromMilliseconds(16);
+        _timer.Tick += (_, __) =>
         {
-            count++;
+            var dt = _sw.Elapsed.TotalSeconds;
+            _sw.Restart();
 
-            if (count == 1)
-                CounterBtn.Text = $"Clicked {count} time";
-            else
-                CounterBtn.Text = $"Clicked {count} times";
+            _engine.Update(dt);
 
-            SemanticScreenReader.Announce(CounterBtn.Text);
-        }
+            ScoreLabel.Text = $"Score: {_engine.State.Score}";
+            LivesLabel.Text = _engine.State.LivesText;
+            HintLabel.Text = _engine.State.IsGameOver
+                ? "Game Over — tap to restart"
+                : "Swipe left/right to change lanes";
+
+            GameView.Invalidate();
+        };
+    }
+
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+
+        // Load sprites once (safe to call repeatedly; it no-ops after first load)
+        await _drawable.LoadImagesAsync();
+
+        _sw.Restart();
+        _timer.Start();
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        _timer.Stop();
     }
 }
