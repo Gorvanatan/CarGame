@@ -4,6 +4,10 @@ namespace CarGame.UI;
 
 public sealed class GameDrawable : IDrawable
 {
+    // Zoom out slightly so the player can see more road ahead ("longer lanes").
+    // 1.0 = normal. 0.8 = show ~25% more vertical space.
+    private const float RenderScale = 1.0f;
+
     private readonly GameEngine _engine;
     public SpriteStore Sprites { get; } = new();
 
@@ -20,14 +24,29 @@ public sealed class GameDrawable : IDrawable
         if (!Sprites.IsLoaded)
             _ = Sprites.EnsureLoadedAsync();
 
-        _engine.Resize(dirtyRect.Width, dirtyRect.Height);
+        // Set the render scale so the engine can keep on-screen speeds consistent.
+        _engine.State.RenderScale = RenderScale;
 
-        float w = dirtyRect.Width;
-        float h = dirtyRect.Height;
+        // Resize the game "world" to be larger than the screen; we then scale
+        // the canvas down, which effectively zooms the camera out.
+        _engine.Resize(dirtyRect.Width / RenderScale, dirtyRect.Height / RenderScale);
 
-        DrawBackground(canvas, w, h);
+        float worldW = (float)_engine.State.ViewWidth;
+        float worldH = (float)_engine.State.ViewHeight;
+
+        // World rendering (scaled)
+        canvas.SaveState();
+        canvas.Scale(RenderScale, RenderScale);
+
+        DrawBackground(canvas, worldW, worldH);
         DrawPlayer(canvas);
         DrawEntities(canvas);
+
+        canvas.RestoreState();
+
+        // UI overlays (unscaled)
+        float w = dirtyRect.Width;
+        float h = dirtyRect.Height;
 
         if (_engine.State.IsPaused && !_engine.State.IsGameOver)
             DrawPaused(canvas, w, h);
@@ -86,6 +105,15 @@ public sealed class GameDrawable : IDrawable
         if (playerSprite is not null)
         {
             canvas.DrawImage(playerSprite, (float)p.X, (float)p.Y, (float)p.Width, (float)p.Height);
+
+            // Simple visual indicator when invincible: draw a star above the car.
+            if (_engine.State.IsInvincible && Sprites.Star is not null)
+            {
+                var s = (float)(p.Width * 0.55);
+                var sx = (float)(p.X + (p.Width - s) / 2);
+                var sy = (float)(p.Y - s * 0.75);
+                canvas.DrawImage(Sprites.Star, sx, sy, s, s);
+            }
             return;
         }
 
@@ -127,6 +155,16 @@ public sealed class GameDrawable : IDrawable
                     {
                         canvas.FillColor = Colors.LimeGreen;
                         canvas.FillRoundedRectangle((float)e.X, (float)e.Y, (float)e.Width, (float)e.Height, 10);
+                    }
+                    break;
+
+                case EntityKind.Star:
+                    if (Sprites.Star is not null)
+                        canvas.DrawImage(Sprites.Star, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
+                    else
+                    {
+                        canvas.FillColor = Colors.Yellow;
+                        canvas.FillEllipse((float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
                     }
                     break;
             }

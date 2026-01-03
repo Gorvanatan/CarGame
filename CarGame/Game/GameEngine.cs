@@ -15,33 +15,37 @@ public sealed class GameEngine
     // Raised when the player dies (lives reach 0)
     public event Action? PlayerDied;
 
+    // Raised when invincibility starts/ends (used for music/UI)
+    public event Action? InvincibilityStarted;
+    public event Action? InvincibilityEnded;
+
+    // Raised when the player collects a fuel can (used for sound effects/UI)
+    public event Action? FuelCollected;
+
     private readonly Random _rng = new();
 
     private double _enemySpawnT;
     private double _coinSpawnT;
     private double _fuelSpawnT;
+    private double _starSpawnT;
 
-    // Minimum vertical spacing between spawned objects (enemies/coins/fuel).
-    // Increase this if things feel too "stacked".
-    private const double MinSpawnGapY = 240;
-    private const double SpawnTopBufferY = 450;
+    // --- Spawn rules (no "queue" above the screen) ---
+    // Caps prevent the game from flooding the screen if timers get small.
+    private const int MaxEnemiesActive = 2;
+    private const int MaxCoinsActive = 3;
+    private const int MaxFuelActive = 1;
+    private const int MaxStarsActive = 1;
 
-    // Prevents an ever-growing "invisible queue" of spawns far above the top.
-    // If there are already lots of entities waiting above the screen, we delay rare spawns (like fuel).
-    private const int MaxQueuedAboveTop = 8;
-
-    private int CountQueuedAboveTop()
-    {
-        int count = 0;
-        for (int i = 0; i < State.Entities.Count; i++)
-        {
-            if (State.Entities[i].Y < 0) count++;
-        }
-        return count;
-    }
+    // Minimum spacing for ENEMIES per lane: don't spawn another enemy in a lane
+    // if an enemy in that lane is still within this many pixels of the top.
+    private const double EnemyMinGapFromTop = 250;
 
     // prevents losing multiple lives in a single overlap
     private double _hitCooldown;
+
+    // Persisted upgrade keys (set by Shop)
+    private const string PrefMaxHealth = "max_health"; // int (default 3)
+    private const string PrefInvincibilityDurationSeconds = "invincibility_duration_seconds"; // int (default 10)
 
     public GameEngine() => Reset();
 
@@ -52,7 +56,11 @@ public sealed class GameEngine
 
         State.Entities.Clear();
 
-        State.Lives = 3;
+        // Load upgrades
+        State.MaxLives = Math.Clamp(Preferences.Default.Get(PrefMaxHealth, 3), 3, 6);
+        State.InvincibilityDuration = Math.Clamp(Preferences.Default.Get(PrefInvincibilityDurationSeconds, 10), 6, 60);
+
+        State.Lives = State.MaxLives;
         State.IsGameOver = false;
         State.IsPaused = false;
 
@@ -60,14 +68,20 @@ public sealed class GameEngine
         State.CoinsThisRun = 0;
         State.BgScroll = 0;
 
-        State.ScrollSpeed = 520;
+        State.IsInvincible = false;
+        State.InvincibleRemaining = 0;
+
+        // Start slower to give the player more time to react when cars appear.
+        // Difficulty still ramps up over time in Update().
+        State.ScrollSpeed = 100;
         State.PointsPerSecond = 5;
 
         State.Player.TargetLane = 1;
 
-        _enemySpawnT = 0.6;
-        _coinSpawnT = 1.2;
+        _enemySpawnT = 5.0;
+        _coinSpawnT = 6.0;
         _fuelSpawnT = 12.0;
+        _starSpawnT = 16.0;
 
         _hitCooldown = 0;
 
@@ -96,14 +110,15 @@ public sealed class GameEngine
         State.LaneWidth = width / 3.0;
 
         // Size player relative to lane width, but cap it so it doesn't get huge on wide windows.
-        var desiredW = State.LaneWidth * 0.58;
-        var maxW = State.ViewHeight * 0.22; // looks reasonable on both phone + desktop
+        var desiredW = State.LaneWidth * 0.24;
+        var maxW = State.ViewHeight * 0.11; // looks reasonable on both phone + desktop
 
         State.Player.Width = Math.Min(desiredW, maxW);
         State.Player.Height = State.Player.Width * 1.6;
 
         // Place player near bottom
-        State.Player.Y = height - State.Player.Height - 100;
+        // Place player a bit lower to increase the visible reaction distance.
+        State.Player.Y = height - State.Player.Height - 40;
 
         // Snap to lane on resize
         var targetX = LaneCenterX(State.Player.TargetLane) - State.Player.Width / 2;
@@ -112,27 +127,84 @@ public sealed class GameEngine
 
     private double LaneCenterX(int lane) => State.LaneWidth * (lane + 0.5);
 
-    private double GetSpawnY(double entityHeight)
-    {
-        // Spawn above the top of the screen to give reaction time...
-        var y = -SpawnTopBufferY - entityHeight;
+    private static double SpawnAtTopY(double entityHeight)
+        => -entityHeight - 10;
 
-        // ...but if there are already entities queued above the top (negative Y),
-        // push the new spawn further up to keep a minimum gap between sprites.
-        double minY = double.PositiveInfinity;
+    private int ActiveCount(EntityKind kind)
+    {
+        int count = 0;
+        for (int i = 0; i < State.Entities.Count; i++)
+        {
+            if (State.Entities[i].Kind == kind) count++;
+        }
+        return count;
+    }
+
+    private int LaneFromEntity(Entity e)
+    {
+        var cx = e.X + e.Width / 2.0;
+        if (State.LaneWidth <= 0) return 1;
+        return Math.Clamp((int)(cx / State.LaneWidth), 0, 2);
+    }
+
+    private bool EnemyLaneHasSpace(int lane)
+    {
+        // If there is any enemy in this lane still near the top, block spawns.
         for (int i = 0; i < State.Entities.Count; i++)
         {
             var e = State.Entities[i];
-            if (e.Y < 0 && e.Y < minY) minY = e.Y;
+            if (e.Kind != EntityKind.Enemy) continue;
+            if (LaneFromEntity(e) != lane) continue;
+            if (e.Y < EnemyMinGapFromTop) return false;
         }
+        return true;
+    }
 
-        if (minY != double.PositiveInfinity)
+    private bool IsAreaClear(double x, double y, double w, double h, double padding)
+    {
+        // Expand the spawn rectangle slightly so items don't appear "on top" of each other.
+        var ax = x - padding;
+        var ay = y - padding;
+        var aw = w + padding * 2;
+        var ah = h + padding * 2;
+
+        for (int i = 0; i < State.Entities.Count; i++)
         {
-            var spacedY = minY - MinSpawnGapY - entityHeight;
-            if (spacedY < y) y = spacedY;
+            var e = State.Entities[i];
+            if (Intersects(ax, ay, aw, ah, e.X, e.Y, e.Width, e.Height))
+                return false;
+        }
+        return true;
+    }
+
+    private static void Shuffle(Span<int> lanes, Random rng)
+    {
+        for (int i = lanes.Length - 1; i > 0; i--)
+        {
+            int j = rng.Next(0, i + 1);
+            (lanes[i], lanes[j]) = (lanes[j], lanes[i]);
+        }
+    }
+
+    private bool TrySpawnInAnyLane(EntityKind kind, double padding)
+    {
+        Span<int> lanes = stackalloc int[3] { 0, 1, 2 };
+        Shuffle(lanes, _rng);
+
+        for (int i = 0; i < lanes.Length; i++)
+        {
+            int lane = lanes[i];
+            var e = Entity.Make(kind, LaneCenterX(lane), 0, State);
+            e.Y = SpawnAtTopY(e.Height);
+
+            if (!IsAreaClear(e.X, e.Y, e.Width, e.Height, padding))
+                continue;
+
+            State.Entities.Add(e);
+            return true;
         }
 
-        return y;
+        return false;
     }
 
     public void Update(double dt)
@@ -142,14 +214,32 @@ public sealed class GameEngine
         if (State.IsGameOver) return;
         if (State.IsPaused) return;
 
+        // Convert "screen speed" into world speed when the renderer is zoomed out.
+        // This keeps the on-screen motion feeling consistent while showing more road.
+        var scale = Math.Clamp(State.RenderScale, 0.1, 2.0);
+        var worldSpeed = State.ScrollSpeed / scale;
+
         // Score increases the longer you survive
         State.ScorePrecise += dt * State.PointsPerSecond;
 
         // Background scroll (lane dashes)
-        State.BgScroll += State.ScrollSpeed * dt;
+        State.BgScroll += worldSpeed * dt;
 
-        // Optional gentle difficulty ramp
-        State.ScrollSpeed += dt * 2.0;
+        // Difficulty ramp (acceleration). Starts slow so you have more reaction time,
+        // but speeds up the longer you survive.
+        State.ScrollSpeed += dt * 6.5;
+
+        // Invincibility countdown
+        if (State.IsInvincible)
+        {
+            State.InvincibleRemaining -= dt;
+            if (State.InvincibleRemaining <= 0)
+            {
+                State.IsInvincible = false;
+                State.InvincibleRemaining = 0;
+                InvincibilityEnded?.Invoke();
+            }
+        }
 
         // Hit cooldown
         _hitCooldown = Math.Max(0, _hitCooldown - dt);
@@ -162,39 +252,70 @@ public sealed class GameEngine
         _enemySpawnT -= dt;
         _coinSpawnT -= dt;
         _fuelSpawnT -= dt;
+        _starSpawnT -= dt;
 
         if (_enemySpawnT <= 0)
         {
-            SpawnEnemy();
-            _enemySpawnT = RandomRange(0.55, 1.05);
-        }
-
-        if (_coinSpawnT <= 0)
-        {
-            SpawnCoin();
-            _coinSpawnT = RandomRange(0.9, 1.7);
-        }
-
-        if (_fuelSpawnT <= 0)
-        {
-            // Rare fuel can: spawn it even at full lives so you can actually see it.
-            // If the spawn queue above the screen is too large, retry sooner instead of pushing it miles up.
-            if (CountQueuedAboveTop() < MaxQueuedAboveTop)
+            // --- Enemies ---
+            // Cap total active enemies and enforce per-lane spacing near the top.
+            if (ActiveCount(EntityKind.Enemy) < MaxEnemiesActive && SpawnEnemy())
             {
-                SpawnFuel();
-                _fuelSpawnT = RandomRange(12.0, 20.0);
+                // With the slower starting speed, slightly reduce spawn frequency
+                // so the screen doesn't feel overly busy.
+                _enemySpawnT = RandomRange(0.75, 1.35);
             }
             else
             {
-                _fuelSpawnT = 3.0; // retry soon
+                // Couldn't spawn due to caps/spacing — retry soon.
+                _enemySpawnT = 0.25;
             }
         }
+
+if (_coinSpawnT <= 0)
+{
+    // --- Coins ---
+    if (ActiveCount(EntityKind.Coin) < MaxCoinsActive && SpawnCoin())
+    {
+        _coinSpawnT = RandomRange(1.0, 1.8);
+    }
+    else
+    {
+        // Lanes blocked / cap reached — retry soon.
+        _coinSpawnT = 0.35;
+    }
+}
+
+if (_fuelSpawnT <= 0)
+{
+    // --- Fuel ---
+    if (ActiveCount(EntityKind.Fuel) < MaxFuelActive && SpawnFuel())
+    {
+        _fuelSpawnT = RandomRange(12.0, 20.0);
+    }
+    else
+    {
+        _fuelSpawnT = 1.0;
+    }
+}
+
+if (_starSpawnT <= 0)
+{
+    // --- Star (invincibility) ---
+    if (ActiveCount(EntityKind.Star) < MaxStarsActive && SpawnStar())
+    {
+        _starSpawnT = RandomRange(18.0, 32.0);
+    }
+    else
+    {
+        _starSpawnT = 1.0;
+    }
+}
 
         // Move entities downward
         for (int i = State.Entities.Count - 1; i >= 0; i--)
         {
             var e = State.Entities[i];
-            e.Y += State.ScrollSpeed * dt;
+            e.Y += worldSpeed * dt;
 
             // Remove off-screen
             if (e.Y > State.ViewHeight + 250)
@@ -212,6 +333,15 @@ public sealed class GameEngine
             switch (e.Kind)
             {
                 case EntityKind.Enemy:
+                    // While invincible, you can plow through enemies.
+                    if (State.IsInvincible)
+                    {
+                        State.Entities.RemoveAt(i);
+                        // Small reward for hitting an enemy while invincible
+                        State.ScorePrecise += 5;
+                        break;
+                    }
+
                     if (_hitCooldown <= 0)
                     {
                         State.Entities.RemoveAt(i);
@@ -247,35 +377,65 @@ public sealed class GameEngine
 
                 case EntityKind.Fuel:
                     State.Entities.RemoveAt(i);
-                    State.Lives = Math.Min(3, State.Lives + 1);
+                    State.Lives = Math.Min(State.MaxLives, State.Lives + 1);
+                    FuelCollected?.Invoke();
+                    break;
+
+                case EntityKind.Star:
+                    State.Entities.RemoveAt(i);
+                    // Invincibility duration can be upgraded
+                    State.IsInvincible = true;
+                    State.InvincibleRemaining = Math.Max(0.1, State.InvincibilityDuration);
+                    // Fire event even if refreshed so music restarts cleanly
+                    InvincibilityStarted?.Invoke();
                     break;
             }
         }
     }
 
-    private void SpawnEnemy()
+private bool SpawnEnemy()
+{
+    // Try each lane (shuffled) and choose the first one that satisfies:
+    // 1) lane spacing rule for enemies, and
+    // 2) does not overlap any existing entity at the spawn area.
+    Span<int> lanes = stackalloc int[3] { 0, 1, 2 };
+    Shuffle(lanes, _rng);
+
+    for (int i = 0; i < lanes.Length; i++)
     {
-        int lane = _rng.Next(0, 3);
+        int lane = lanes[i];
+        if (!EnemyLaneHasSpace(lane)) continue;
+
         var e = Entity.Make(EntityKind.Enemy, LaneCenterX(lane), 0, State);
-        e.Y = GetSpawnY(e.Height);
+        e.Y = SpawnAtTopY(e.Height);
+
+        if (!IsAreaClear(e.X, e.Y, e.Width, e.Height, padding: 20))
+            continue;
+
         State.Entities.Add(e);
+        return true;
     }
 
-    private void SpawnCoin()
-    {
-        int lane = _rng.Next(0, 3);
-        var e = Entity.Make(EntityKind.Coin, LaneCenterX(lane), 0, State);
-        e.Y = GetSpawnY(e.Height);
-        State.Entities.Add(e);
-    }
+    return false;
+}
 
-    private void SpawnFuel()
-    {
-        int lane = _rng.Next(0, 3);
-        var e = Entity.Make(EntityKind.Fuel, LaneCenterX(lane), 0, State);
-        e.Y = GetSpawnY(e.Height);
-        State.Entities.Add(e);
-    }
+private bool SpawnCoin()
+{
+    // Coins are smaller, but still avoid overlaps with other spawns near the top.
+    return TrySpawnInAnyLane(EntityKind.Coin, padding: 18);
+}
+
+private bool SpawnFuel()
+{
+    // Fuel is rarer/bigger — use more padding so it doesn't clip into other items.
+    return TrySpawnInAnyLane(EntityKind.Fuel, padding: 24);
+}
+
+private bool SpawnStar()
+{
+    // Star is rare and should feel "clean" when it appears.
+    return TrySpawnInAnyLane(EntityKind.Star, padding: 26);
+}
 
     private static bool Intersects(double ax, double ay, double aw, double ah,
                                    double bx, double by, double bw, double bh)

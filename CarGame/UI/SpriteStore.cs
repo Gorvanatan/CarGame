@@ -17,6 +17,7 @@ public sealed class SpriteStore
     public GraphicsImage? Enemy  { get; private set; }
     public GraphicsImage? Coin   { get; private set; }
     public GraphicsImage? Fuel   { get; private set; }
+    public GraphicsImage? Star   { get; private set; }
 
     public bool IsLoaded { get; private set; }
 
@@ -43,6 +44,7 @@ public sealed class SpriteStore
         Enemy  = _cars["redcar.png"];    // enemy uses red car
         Coin   = await LoadFromAppPackageAsync("coin.jpg");
         Fuel   = await LoadFromAppPackageAsync("fuelcan.jpg");
+        Star   = await LoadFromAppPackageAsync("starpower.png");
 
         IsLoaded = true;
     }

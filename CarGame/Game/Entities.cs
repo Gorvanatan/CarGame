@@ -4,7 +4,8 @@ public enum EntityKind
 {
     Enemy,
     Coin,
-    Fuel
+    Fuel,
+    Star
 }
 
 public sealed class PlayerCar
@@ -42,6 +43,12 @@ public sealed class Entity
         if (kind == EntityKind.Fuel)
         {
             w *= 0.55;
+            h = w;
+        }
+
+        if (kind == EntityKind.Star)
+        {
+            w *= 0.65;
             h = w;
         }
 
