@@ -12,6 +12,9 @@ public partial class MainPage : ContentPage
     private readonly IDispatcherTimer _timer;
     private readonly Stopwatch _sw = new();
 
+    // For mouse + touch on Windows (PanGesture works reliably)
+    private double _panTotalX = 0;
+
     public MainPage()
     {
         InitializeComponent();
@@ -19,14 +22,32 @@ public partial class MainPage : ContentPage
         _drawable = new GameDrawable(_engine);
         GameView.Drawable = _drawable;
 
-        // Swipe gestures
-        var swipeLeft = new SwipeGestureRecognizer { Direction = SwipeDirection.Left };
-        swipeLeft.Swiped += (_, __) => _engine.TryMovePlayerLane(-1);
+        // PAN (works with mouse drag on Windows + touch on mobile)
+        var pan = new PanGestureRecognizer();
+        pan.PanUpdated += (_, e) =>
+        {
+            if (_engine.State.IsGameOver) return;
 
-        var swipeRight = new SwipeGestureRecognizer { Direction = SwipeDirection.Right };
-        swipeRight.Swiped += (_, __) => _engine.TryMovePlayerLane(+1);
+            switch (e.StatusType)
+            {
+                case GestureStatus.Started:
+                    _panTotalX = 0;
+                    break;
 
-        // Tap to restart if game over
+                case GestureStatus.Running:
+                    _panTotalX = e.TotalX;
+                    break;
+
+                case GestureStatus.Completed:
+                case GestureStatus.Canceled:
+                    const double threshold = 50; // pixels (tweak if you want)
+                    if (_panTotalX <= -threshold) _engine.TryMovePlayerLane(-1);
+                    else if (_panTotalX >= threshold) _engine.TryMovePlayerLane(+1);
+                    break;
+            }
+        };
+
+        // TAP to restart after game over
         var tap = new TapGestureRecognizer();
         tap.Tapped += (_, __) =>
         {
@@ -34,8 +55,9 @@ public partial class MainPage : ContentPage
                 _engine.Reset();
         };
 
-        GameView.GestureRecognizers.Add(swipeLeft);
-        GameView.GestureRecognizers.Add(swipeRight);
+        // Attach gestures
+        GameView.GestureRecognizers.Clear();
+        GameView.GestureRecognizers.Add(pan);
         GameView.GestureRecognizers.Add(tap);
 
         // Game loop (~60fps)
@@ -52,19 +74,15 @@ public partial class MainPage : ContentPage
             LivesLabel.Text = _engine.State.LivesText;
             HintLabel.Text = _engine.State.IsGameOver
                 ? "Game Over — tap to restart"
-                : "Swipe left/right to change lanes";
+                : "Drag left/right to change lanes";
 
             GameView.Invalidate();
         };
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
-
-        // Load sprites once (safe to call repeatedly; it no-ops after first load)
-        await _drawable.LoadImagesAsync();
-
         _sw.Restart();
         _timer.Start();
     }

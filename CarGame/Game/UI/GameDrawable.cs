@@ -1,64 +1,24 @@
 using CarGame.Game;
-using Microsoft.Maui.Graphics.Platform;
-using GraphicsImage = Microsoft.Maui.Graphics.IImage;
 
 namespace CarGame.UI;
 
 public sealed class GameDrawable : IDrawable
 {
     private readonly GameEngine _engine;
-
-    // Sprites (loaded from app package)
-    private GraphicsImage? _playerImg;
-    private GraphicsImage? _enemyImg;
-    private GraphicsImage? _coinImg;
-    private GraphicsImage? _fuelImg;
-
-    private bool _loadingStarted;
+    public SpriteStore Sprites { get; } = new();
 
     public GameDrawable(GameEngine engine) => _engine = engine;
 
     /// <summary>
-    /// Loads sprites from the app package. Safe to call multiple times.
+    /// Loads sprites (safe to call multiple times).
     /// </summary>
-    public async Task LoadImagesAsync()
-    {
-        if (_loadingStarted) return;
-        _loadingStarted = true;
-
-        // Android requires resource file names to be lowercase
-        _playerImg = await LoadImageFromAppPackageAsync("yellowcar.png");
-        _enemyImg = await LoadImageFromAppPackageAsync("redcar.png");
-        _coinImg = await LoadImageFromAppPackageAsync("coin.jpg");
-        _fuelImg = await LoadImageFromAppPackageAsync("fuelcan.jpg");
-    }
-
-    private static async Task<GraphicsImage?> LoadImageFromAppPackageAsync(string filename)
-    {
-        try
-        {
-            await using var stream = await FileSystem.OpenAppPackageFileAsync(filename);
-
-            // Copy into MemoryStream so the image can be created safely
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-            ms.Position = 0;
-
-            // IMPORTANT: FromStream expects a Stream (NOT a lambda)
-            return PlatformImage.FromStream(ms);
-        }
-        catch
-        {
-            // If a file isn't found or can't load, return null (we'll draw shapes instead)
-            return null;
-        }
-    }
+    public Task LoadImagesAsync() => Sprites.EnsureLoadedAsync();
 
     public void Draw(ICanvas canvas, RectF dirtyRect)
     {
-        // Start sprite loading once (non-blocking)
-        if (!_loadingStarted)
-            _ = LoadImagesAsync();
+        // Kick off sprite loading once (non-blocking) in case caller didn't await it.
+        if (!Sprites.IsLoaded)
+            _ = Sprites.EnsureLoadedAsync();
 
         _engine.Resize(dirtyRect.Width, dirtyRect.Height);
 
@@ -66,7 +26,6 @@ public sealed class GameDrawable : IDrawable
         float h = dirtyRect.Height;
 
         DrawBackground(canvas, w, h);
-
         DrawPlayer(canvas);
         DrawEntities(canvas);
 
@@ -107,9 +66,9 @@ public sealed class GameDrawable : IDrawable
     {
         var p = _engine.State.Player;
 
-        if (_playerImg is not null)
+        if (Sprites.Player is not null)
         {
-            canvas.DrawImage(_playerImg, (float)p.X, (float)p.Y, (float)p.Width, (float)p.Height);
+            canvas.DrawImage(Sprites.Player, (float)p.X, (float)p.Y, (float)p.Width, (float)p.Height);
             return;
         }
 
@@ -125,10 +84,8 @@ public sealed class GameDrawable : IDrawable
             switch (e.Kind)
             {
                 case EntityKind.Enemy:
-                    if (_enemyImg is not null)
-                    {
-                        canvas.DrawImage(_enemyImg, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
-                    }
+                    if (Sprites.Enemy is not null)
+                        canvas.DrawImage(Sprites.Enemy, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
                     else
                     {
                         canvas.FillColor = Colors.Red;
@@ -137,10 +94,8 @@ public sealed class GameDrawable : IDrawable
                     break;
 
                 case EntityKind.Coin:
-                    if (_coinImg is not null)
-                    {
-                        canvas.DrawImage(_coinImg, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
-                    }
+                    if (Sprites.Coin is not null)
+                        canvas.DrawImage(Sprites.Coin, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
                     else
                     {
                         canvas.FillColor = Colors.Gold;
@@ -149,10 +104,8 @@ public sealed class GameDrawable : IDrawable
                     break;
 
                 case EntityKind.Fuel:
-                    if (_fuelImg is not null)
-                    {
-                        canvas.DrawImage(_fuelImg, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
-                    }
+                    if (Sprites.Fuel is not null)
+                        canvas.DrawImage(Sprites.Fuel, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
                     else
                     {
                         canvas.FillColor = Colors.LimeGreen;

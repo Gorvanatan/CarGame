@@ -10,6 +10,25 @@ public sealed class GameEngine
     private double _coinSpawnT;
     private double _fuelSpawnT;
 
+    // Minimum vertical spacing between spawned objects (enemies/coins/fuel).
+    // Increase this if things feel too "stacked".
+    private const double MinSpawnGapY = 240;
+    private const double SpawnTopBufferY = 450;
+
+    // Prevents an ever-growing "invisible queue" of spawns far above the top.
+    // If there are already lots of entities waiting above the screen, we delay rare spawns (like fuel).
+    private const int MaxQueuedAboveTop = 8;
+
+    private int CountQueuedAboveTop()
+    {
+        int count = 0;
+        for (int i = 0; i < State.Entities.Count; i++)
+        {
+            if (State.Entities[i].Y < 0) count++;
+        }
+        return count;
+    }
+
     // prevents losing multiple lives in a single overlap
     private double _hitCooldown;
 
@@ -53,12 +72,15 @@ public sealed class GameEngine
         State.ViewHeight = height;
         State.LaneWidth = width / 3.0;
 
-        // Size player relative to lane width
-        State.Player.Width = State.LaneWidth * 0.58;
+        // Size player relative to lane width, but cap it so it doesn't get huge on wide windows.
+        var desiredW = State.LaneWidth * 0.58;
+        var maxW = State.ViewHeight * 0.22; // looks reasonable on both phone + desktop
+
+        State.Player.Width = Math.Min(desiredW, maxW);
         State.Player.Height = State.Player.Width * 1.6;
 
         // Place player near bottom
-        State.Player.Y = height - State.Player.Height - 30;
+        State.Player.Y = height - State.Player.Height - 100;
 
         // Snap to lane on resize
         var targetX = LaneCenterX(State.Player.TargetLane) - State.Player.Width / 2;
@@ -66,6 +88,29 @@ public sealed class GameEngine
     }
 
     private double LaneCenterX(int lane) => State.LaneWidth * (lane + 0.5);
+
+    private double GetSpawnY(double entityHeight)
+    {
+        // Spawn above the top of the screen to give reaction time...
+        var y = -SpawnTopBufferY - entityHeight;
+
+        // ...but if there are already entities queued above the top (negative Y),
+        // push the new spawn further up to keep a minimum gap between sprites.
+        double minY = double.PositiveInfinity;
+        for (int i = 0; i < State.Entities.Count; i++)
+        {
+            var e = State.Entities[i];
+            if (e.Y < 0 && e.Y < minY) minY = e.Y;
+        }
+
+        if (minY != double.PositiveInfinity)
+        {
+            var spacedY = minY - MinSpawnGapY - entityHeight;
+            if (spacedY < y) y = spacedY;
+        }
+
+        return y;
+    }
 
     public void Update(double dt)
     {
@@ -108,9 +153,17 @@ public sealed class GameEngine
 
         if (_fuelSpawnT <= 0)
         {
-            // Rare heart restore; only useful if you're below max lives
-            if (State.Lives < 3) SpawnFuel();
-            _fuelSpawnT = RandomRange(12.0, 20.0);
+            // Rare fuel can: spawn it even at full lives so you can actually see it.
+            // If the spawn queue above the screen is too large, retry sooner instead of pushing it miles up.
+            if (CountQueuedAboveTop() < MaxQueuedAboveTop)
+            {
+                SpawnFuel();
+                _fuelSpawnT = RandomRange(12.0, 20.0);
+            }
+            else
+            {
+                _fuelSpawnT = 3.0; // retry soon
+            }
         }
 
         // Move entities downward
@@ -162,19 +215,25 @@ public sealed class GameEngine
     private void SpawnEnemy()
     {
         int lane = _rng.Next(0, 3);
-        State.Entities.Add(Entity.Make(EntityKind.Enemy, LaneCenterX(lane), -160, State));
+        var e = Entity.Make(EntityKind.Enemy, LaneCenterX(lane), 0, State);
+        e.Y = GetSpawnY(e.Height);
+        State.Entities.Add(e);
     }
 
     private void SpawnCoin()
     {
         int lane = _rng.Next(0, 3);
-        State.Entities.Add(Entity.Make(EntityKind.Coin, LaneCenterX(lane), -120, State));
+        var e = Entity.Make(EntityKind.Coin, LaneCenterX(lane), 0, State);
+        e.Y = GetSpawnY(e.Height);
+        State.Entities.Add(e);
     }
 
     private void SpawnFuel()
     {
         int lane = _rng.Next(0, 3);
-        State.Entities.Add(Entity.Make(EntityKind.Fuel, LaneCenterX(lane), -150, State));
+        var e = Entity.Make(EntityKind.Fuel, LaneCenterX(lane), 0, State);
+        e.Y = GetSpawnY(e.Height);
+        State.Entities.Add(e);
     }
 
     private static bool Intersects(double ax, double ay, double aw, double ah,

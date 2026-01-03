@@ -26,12 +26,24 @@ public sealed class Entity
 
     public static Entity Make(EntityKind kind, double laneCenterX, double y, GameState s)
     {
-        var w = s.LaneWidth * 0.52;
+        // Base size relative to lane width, with a cap so enemies/items don't get massive on desktop.
+        var desiredCarW = s.LaneWidth * 0.52;
+        var maxCarW = s.ViewHeight * 0.20;
+        var w = Math.Min(desiredCarW, maxCarW);
         var h = w * 1.6;
 
         // Items are smaller than cars
-        if (kind == EntityKind.Coin) { w *= 0.45; h = w; }
-        if (kind == EntityKind.Fuel) { w *= 0.55; h = w; }
+        if (kind == EntityKind.Coin)
+        {
+            w *= 0.45;
+            h = w;
+        }
+
+        if (kind == EntityKind.Fuel)
+        {
+            w *= 0.55;
+            h = w;
+        }
 
         return new Entity
         {

@@ -9,7 +9,7 @@
         <GraphicsView x:Name="GameView" />
 
         <!-- HUD -->
-        <Grid Padding="16" RowDefinitions="Auto,*">
+        <Grid Padding="16" RowDefinitions="Auto,*" InputTransparent="True">
             <HorizontalStackLayout Spacing="18">
                 <Label x:Name="ScoreLabel"
                        Text="Score: 0"
