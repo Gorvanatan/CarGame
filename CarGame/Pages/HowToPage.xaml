@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CarGame.Pages.HowToPage"
+             BackgroundColor="Black"
+             Shell.NavBarIsVisible="False">
+
+    <Grid Padding="24" RowDefinitions="Auto,*,Auto" RowSpacing="18">
+
+        <Label Grid.Row="0"
+               Text="How to Play"
+               TextColor="White"
+               FontSize="28"
+               HorizontalOptions="Center" />
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Spacing="14" HorizontalOptions="Center">
+                <Image Source="howtoplay.png" Aspect="AspectFit" HeightRequest="320" />
+
+                <Frame Padding="16" CornerRadius="18" BackgroundColor="#202020" BorderColor="#3A3A3A" MaximumWidthRequest="380">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="• Swipe left/right to change lanes" TextColor="#CFCFCF" FontSize="14" />
+                        <Label Text="• Avoid enemy cars" TextColor="#CFCFCF" FontSize="14" />
+                        <Label Text="• Collect coins (+10 score each)" TextColor="#CFCFCF" FontSize="14" />
+                        <Label Text="• Fuel can restores a life up to your max" TextColor="#CFCFCF" FontSize="14" />
+                        <Label Text="• Star gives temporary invincibility" TextColor="#CFCFCF" FontSize="14" />
+                    </VerticalStackLayout>
+                </Frame>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <Button Grid.Row="2"
+                Text="Back"
+                Clicked="Back_Clicked"
+                HorizontalOptions="Center"
+                WidthRequest="220" />
+
+    </Grid>
+</ContentPage>

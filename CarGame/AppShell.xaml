@@ -3,12 +3,12 @@
     x:Class="CarGame.AppShell"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:local="clr-namespace:CarGame"
+    xmlns:pages="clr-namespace:CarGame.Pages"
     Title="CarGame">
 
+    <!-- Start the app on the Menu page -->
     <ShellContent
-        Title="Home"
-        ContentTemplate="{DataTemplate local:MainPage}"
-        Route="MainPage" />
+        Route="menu"
+        ContentTemplate="{DataTemplate pages:MenuPage}" />
 
 </Shell>

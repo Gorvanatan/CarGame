@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using CarGame.Services;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CarGame
 {
@@ -14,6 +16,9 @@ namespace CarGame
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
+
+            // Simple services used by MVVM pages
+            builder.Services.AddSingleton<IProfileService, ProfileService>();
 
 #if DEBUG
     		builder.Logging.AddDebug();

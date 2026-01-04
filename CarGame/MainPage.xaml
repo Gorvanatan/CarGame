@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:CarGame.ViewModels"
              x:Class="CarGame.MainPage"
+             x:DataType="viewModels:GameHudViewModel"
              BackgroundColor="Black"
              Shell.NavBarIsVisible="False">
 
@@ -11,59 +13,56 @@
 
         <!-- HUD -->
         <Grid x:Name="HudGrid" Padding="16" RowDefinitions="Auto,*" InputTransparent="True">
-<Grid RowDefinitions="Auto,Auto"
-      ColumnDefinitions="*,*,*"
+<Grid RowDefinitions="Auto,Auto,Auto"
+      ColumnDefinitions="*,*"
       RowSpacing="6"
       ColumnSpacing="18"
       HorizontalOptions="Fill"
       VerticalOptions="Start">
 
     <!-- Row 0 -->
-    <Label x:Name="ScoreLabel"
-           Text="Score: 0"
+    <Label
+           Text="{Binding ScoreText}"
            TextColor="White"
            FontSize="18"
            Grid.Row="0"
            Grid.Column="0"
            HorizontalTextAlignment="Start" />
 
-    <Label x:Name="CoinsLabel"
-           Text="Coins: 0"
+    <Label
+           Text="{Binding CoinsText}"
            TextColor="White"
            FontSize="18"
            Grid.Row="0"
            Grid.Column="1"
-           HorizontalTextAlignment="Center" />
-
-    <Label x:Name="HighScoreLabel"
-           Text="High: 0"
-           TextColor="White"
-           FontSize="18"
-           Grid.Row="0"
-           Grid.Column="2"
            HorizontalTextAlignment="End" />
 
     <!-- Row 1 -->
-    <Label x:Name="LivesLabel"
-           Text="❤❤❤"
+    <Label
+           Text="{Binding HighScoreText}"
            TextColor="White"
-           FontSize="18"
+           FontSize="14"
            Grid.Row="1"
            Grid.Column="0"
            HorizontalTextAlignment="Start" />
 
-    <Label x:Name="InvincibleLabel"
-           Text="INV"
+    <!-- Row 2 -->
+    <Label
+           Text="{Binding LivesText}"
+           TextColor="White"
+           FontSize="18"
+           Grid.Row="2"
+           Grid.Column="0"
+           HorizontalTextAlignment="Start" />
+
+    <Label
+           Text="{Binding InvincibleText}"
            TextColor="Yellow"
            FontSize="18"
-           IsVisible="False"
-           Grid.Row="1"
+           IsVisible="{Binding IsInvincible}"
+           Grid.Row="2"
            Grid.Column="1"
-           HorizontalTextAlignment="Center" />
-
-    <Label Text=""
-           Grid.Row="1"
-           Grid.Column="2" />
+           HorizontalTextAlignment="End" />
 </Grid>
 <Label x:Name="HintLabel"
                    Grid.Row="1"
@@ -83,12 +82,12 @@
                 HorizontalOptions="End"
                 VerticalOptions="Start"
                 Margin="0,12,12,0"
-                Clicked="PauseButton_Clicked" />
+                Command="{Binding PauseCommand}" IsVisible="{Binding CanPause}" />
 
         <!-- PAUSE MENU OVERLAY (during gameplay) -->
 <Grid x:Name="PauseOverlay"
       BackgroundColor="#B0000000"
-      IsVisible="False"
+      IsVisible="{Binding IsPaused}"
       Padding="20">
 
     <ScrollView VerticalOptions="Center"
@@ -116,22 +115,22 @@
                 <Button Text="Resume"
                         WidthRequest="220"
                         HorizontalOptions="Center"
-                        Clicked="PauseResume_Clicked" />
+                        Command="{Binding ResumeCommand}" />
 
                 <Button Text="Restart Run"
                         WidthRequest="220"
                         HorizontalOptions="Center"
-                        Clicked="PauseRestart_Clicked" />
+                        Command="{Binding RestartCommand}" />
 
                 <Button Text="Settings"
                         WidthRequest="220"
                         HorizontalOptions="Center"
-                        Clicked="PauseSettings_Clicked" />
+                        Command="{Binding SettingsCommand}" />
 
                 <Button Text="Main Menu"
                         WidthRequest="220"
                         HorizontalOptions="Center"
-                        Clicked="PauseMainMenu_Clicked" />
+                        Command="{Binding MenuCommand}" />
             </VerticalStackLayout>
         </Frame>
     </ScrollView>
@@ -140,7 +139,7 @@
 <!-- GAME OVER OVERLAY -->
 <Grid x:Name="GameOverOverlay"
       BackgroundColor="#B0000000"
-      IsVisible="False" Padding="20">
+      IsVisible="{Binding IsGameOver}" Padding="20">
 
             <ScrollView>
 <Frame Padding="22"
@@ -158,31 +157,31 @@
                    HorizontalTextAlignment="Center" />
 
             <Label x:Name="FinalScoreLabel"
-                   Text="Score: 0"
+                   Text="{Binding FinalScoreText}"
                    FontSize="16"
                    TextColor="#CFCFCF"
                    HorizontalTextAlignment="Center" />
 
             <Label x:Name="FinalTimeAliveLabel"
-                   Text="Time Alive: 0:00"
+                   Text="{Binding FinalTimeAliveText}"
                    FontSize="16"
                    TextColor="#CFCFCF"
                    HorizontalTextAlignment="Center" />
 
             <Label x:Name="FinalHighScoreLabel"
-                   Text="High Score: 0"
+                   Text="{Binding FinalHighScoreText}"
                    FontSize="16"
                    TextColor="#CFCFCF"
                    HorizontalTextAlignment="Center" />
 
             <Label x:Name="FinalCoinsRunLabel"
-                   Text="Coins this run: 0"
+                   Text="{Binding FinalCoinsRunText}"
                    FontSize="14"
                    TextColor="#AFAFAF"
                    HorizontalTextAlignment="Center" />
 
             <Label x:Name="FinalCoinsHeldLabel"
-                   Text="Coins held: 0"
+                   Text="{Binding FinalCoinsHeldText}"
                    FontSize="14"
                    TextColor="#AFAFAF"
                    HorizontalTextAlignment="Center"
@@ -193,16 +192,16 @@
                    FontSize="14"
                    TextColor="Gold"
                    HorizontalTextAlignment="Center"
-                   IsVisible="False"
+                   IsVisible="{Binding IsNewHighScore}"
                    Margin="0,6,0,0" />
 
             <Button Text="Restart Run"
                     WidthRequest="220"
-                    Clicked="GameOverRestart_Clicked" />
+                    Command="{Binding RestartCommand}" />
 
             <Button Text="Main Menu"
                     WidthRequest="220"
-                    Clicked="GameOverMenu_Clicked" />
+                    Command="{Binding MenuCommand}" />
         </VerticalStackLayout>
     </Frame>
             </ScrollView>

@@ -1,5 +1,6 @@
 using CarGame.Game;
 using CarGame.UI;
+using CarGame.ViewModels;
 using Microsoft.Maui.Storage;
 using Microsoft.Maui.Graphics;
 using Plugin.Maui.Audio;
@@ -69,6 +70,7 @@ public partial class MainPage : ContentPage
     private bool _sfxEnabled;
 
     private readonly GameEngine _engine = new();
+    private readonly GameHudViewModel _hud = new();
     private readonly GameDrawable _drawable;
 
     private readonly IDispatcherTimer _timer;
@@ -116,6 +118,45 @@ public partial class MainPage : ContentPage
     public MainPage()
     {
         InitializeComponent();
+
+        // Part 4A: HUD-only MVVM binding
+        BindingContext = _hud;
+        _hud.UpdateFromState(_engine.State);
+
+        // Part 4B: route UI commands (pause/gameover buttons) through the ViewModel
+        _hud.PauseRequested += () =>
+        {
+            if (_inMainMenu) return;
+            if (_engine.State.IsGameOver) return;
+            if (_engine.State.IsPaused) return;
+            PauseGameLoop();
+        };
+
+        _hud.ResumeRequested += () =>
+        {
+            if (_inMainMenu) return;
+            if (_engine.State.IsGameOver) return;
+            if (!_engine.State.IsPaused) return;
+            ResumeGameLoop();
+        };
+
+        _hud.RestartRequested += () =>
+        {
+            HideGameOverOverlay();
+            StartGameFromMenu();
+        };
+
+        _hud.SettingsRequested += async () =>
+        {
+            await Shell.Current.GoToAsync("settings");
+        };
+
+        _hud.MenuRequested += () =>
+        {
+            HideGameOverOverlay();
+            ShowMainMenu();
+        };
+
 
         // Load audio settings
         _masterVolume = Preferences.Default.Get(PrefMasterVolume, DefaultMasterVolume);
@@ -229,18 +270,7 @@ public partial class MainPage : ContentPage
             _sw.Restart();
 
             _engine.Update(dt);
-
-            ScoreLabel.Text = $"Score: {_engine.State.Score}";
-            CoinsLabel.Text = $"Coins: {_engine.State.CoinsThisRun}";
-            HighScoreLabel.Text = $"High: {_engine.State.HighScore}";
-            LivesLabel.Text = _engine.State.LivesText;
-
-            if (InvincibleLabel is not null)
-            {
-                InvincibleLabel.IsVisible = _engine.State.IsInvincible;
-                if (_engine.State.IsInvincible)
-                    InvincibleLabel.Text = $"INV: {_engine.State.InvincibleSecondsLeft}s";
-            }
+            _hud.UpdateFromState(_engine.State);
 
             // If the game ends, show the Game Over overlay.
             if (_engine.State.IsGameOver)
@@ -258,12 +288,39 @@ public partial class MainPage : ContentPage
         };
 
         // Start on the main menu (do NOT start the game loop yet)
-        ShowMainMenu();
+        StartGameFromMenu();
     }
 
     protected override void OnAppearing()
     {
         base.OnAppearing();
+
+        // Settings are edited on a separate SettingsPage now, so re-load prefs here
+        // whenever the game page becomes visible again.
+        var newMaster = Preferences.Default.Get(PrefMasterVolume, DefaultMasterVolume);
+        var newSfx = Preferences.Default.Get(PrefSfxEnabled, true);
+
+        var settingsChanged = false;
+        if (Math.Abs(newMaster - _masterVolume) > 0.0001)
+        {
+            _masterVolume = Math.Clamp(newMaster, 0, 1);
+            settingsChanged = true;
+        }
+
+        if (newSfx != _sfxEnabled)
+        {
+            _sfxEnabled = newSfx;
+            settingsChanged = true;
+
+            if (!_sfxEnabled)
+            {
+                // If the invincibility track was playing, stop it immediately.
+                StopStarMusicAndReset();
+            }
+        }
+
+        if (settingsChanged)
+            ApplyAudioSettings();
 
         if (!_inMainMenu)
         {
@@ -495,9 +552,8 @@ public partial class MainPage : ContentPage
         UpdateSelectedCarLabel();
         UpdateCoinsAndUnlockUI();
 
-        // Update HUD labels if they are currently visible
-        HighScoreLabel.Text = "High: 0";
-        CoinsLabel.Text = $"Coins: {_engine.State.CoinsThisRun}";
+        // Update HUD via MVVM binding
+        _hud.UpdateFromState(_engine.State);
 
         await DisplayAlert("Done", "Your data has been reset.", "OK");
     }
@@ -868,17 +924,19 @@ public partial class MainPage : ContentPage
     {
         _inMainMenu = true;
 
+        // MVVM state (keeps pause button hidden and prevents pause overlay showing)
+        _hud.IsInMainMenu = true;
+        _hud.IsPaused = false;
+        _hud.IsGameOver = false;
+
         MainMenuOverlay.IsVisible = true;
         ShopOverlay.IsVisible = false;
         SettingsOverlay.IsVisible = false;
         HowToOverlay.IsVisible = false;
-        PauseOverlay.IsVisible = false;
-        GameOverOverlay.IsVisible = false;
 
         _gameOverShown = false;
 
         HudGrid.IsVisible = false;
-        PauseButton.IsVisible = false;
 
         // Stop gameplay + music while in menu
         _engine.State.IsPaused = true;
@@ -890,27 +948,28 @@ public partial class MainPage : ContentPage
 
         UpdateCoinsAndUnlockUI();
 
-        // Keep labels up to date for when you hit Play
-        ScoreLabel.Text = $"Score: {_engine.State.Score}";
-        HighScoreLabel.Text = $"High: {_engine.State.HighScore}";
-        LivesLabel.Text = _engine.State.LivesText;
+        // Keep HUD up to date for when you hit Play (MVVM binding)
+        _hud.UpdateFromState(_engine.State);
     }
+
 
     private void StartGameFromMenu()
     {
         _inMainMenu = false;
 
+        // MVVM state (enables pause button, hides overlays)
+        _hud.IsInMainMenu = false;
+        _hud.IsPaused = false;
+        _hud.IsGameOver = false;
+
         MainMenuOverlay.IsVisible = false;
         ShopOverlay.IsVisible = false;
         SettingsOverlay.IsVisible = false;
         HowToOverlay.IsVisible = false;
-        PauseOverlay.IsVisible = false;
-        GameOverOverlay.IsVisible = false;
 
         _gameOverShown = false;
 
         HudGrid.IsVisible = true;
-        PauseButton.IsVisible = true;
 
         // Fresh run
         _crashPlayer?.Stop();
@@ -918,6 +977,7 @@ public partial class MainPage : ContentPage
         _coinPlayer?.Stop();
 
         _engine.Reset();
+
         // Apply saved car (only if owned)
         var savedCar = Preferences.Default.Get(PrefSelectedCar, DefaultCar);
 
@@ -935,8 +995,8 @@ public partial class MainPage : ContentPage
         _engine.State.SelectedCarSprite = IsCarOwned(savedCar) ? savedCar : DefaultCar;
         UpdateSelectedCarLabel();
 
-        // Fresh run coin counter
-        CoinsLabel.Text = $"Coins: {_engine.State.CoinsThisRun}";
+        // Fresh run HUD refresh (MVVM binding)
+        _hud.UpdateFromState(_engine.State);
 
         PauseButton.Text = "Pause";
         PauseButton.IsEnabled = true;
@@ -947,6 +1007,7 @@ public partial class MainPage : ContentPage
         RestartEngineRevFromBeginning();
         StopStarMusicAndReset();
     }
+
 
     
     private static string FormatTime(double seconds)
@@ -959,49 +1020,40 @@ public partial class MainPage : ContentPage
 // -----------------------
     // Game Over screen
 // -----------------------
-private void ShowGameOverOverlay()
-{
-    _gameOverShown = true;
+    private void ShowGameOverOverlay()
+    {
+        _gameOverShown = true;
 
-    // Stop gameplay + loops
-    _engine.State.IsPaused = true;
+        // Stop gameplay + loops
+        _engine.State.IsPaused = true;
 
-    PauseOverlay.IsVisible = false;
-    PauseButton.IsVisible = false;
-    PauseButton.IsEnabled = false;
+        // MVVM overlay state
+        _hud.IsPaused = false;
+        _hud.IsGameOver = true;
 
-    // Stop audio (crash SFX can finish playing)
-    StopMusicAndReset();
-    StopEngineRevAndReset();
-    StopStarMusicAndReset();
+        PauseButton.IsEnabled = false;
 
-    // Update summary text
-    if (FinalScoreLabel is not null)
-        FinalScoreLabel.Text = $"Score: {_engine.State.Score}";
-    if (FinalTimeAliveLabel is not null)
-        FinalTimeAliveLabel.Text = $"Time Alive: {FormatTime(_engine.State.TimeAlive)}";
-    if (FinalHighScoreLabel is not null)
-        FinalHighScoreLabel.Text = $"High Score: {_engine.State.HighScore}";
-    if (FinalCoinsRunLabel is not null)
-        FinalCoinsRunLabel.Text = $"Coins this run: {_engine.State.CoinsThisRun}";
-    if (FinalCoinsHeldLabel is not null)
-        FinalCoinsHeldLabel.Text = $"Coins held: {_coinsHeld}";
-    if (NewHighScoreBadgeLabel is not null)
-        NewHighScoreBadgeLabel.IsVisible = _engine.State.IsNewHighScore;
+        // Stop audio (crash SFX can finish playing)
+        StopMusicAndReset();
+        StopEngineRevAndReset();
+        StopStarMusicAndReset();
 
-    GameOverOverlay.IsVisible = true;
+        // Update summary text (bound in XAML)
+        _hud.UpdateGameOverSummary(_engine.State, _coinsHeld, FormatTime(_engine.State.TimeAlive));
 
-    // Stop updates and redraw once to show the overlay
-    _timer.Stop();
-    CancelHintFade();
-    GameView.Invalidate();
-}
+        // Stop updates and redraw once to show the overlay
+        _timer.Stop();
+        CancelHintFade();
+        GameView.Invalidate();
+    }
 
-private void HideGameOverOverlay()
-{
-    GameOverOverlay.IsVisible = false;
-    _gameOverShown = false;
-}
+
+    private void HideGameOverOverlay()
+    {
+        _hud.IsGameOver = false;
+        _gameOverShown = false;
+    }
+
 
 private void GameOverRestart_Clicked(object sender, EventArgs e)
 {
@@ -1148,19 +1200,10 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
 // XAML button handlers
     private void Play_Clicked(object sender, EventArgs e) => StartGameFromMenu();
 
-    private void Settings_Clicked(object sender, EventArgs e)
+    private async void Settings_Clicked(object sender, EventArgs e)
     {
-        _settingsOpenedFromPause = false;
-        // Only allow full data reset from the main menu.
-        SetEraseDataControlsVisible(true);
-        MainMenuOverlay.IsVisible = false;
-        ShopOverlay.IsVisible = false;
-        SettingsOverlay.IsVisible = true;
-        HowToOverlay.IsVisible = false;
-        PauseOverlay.IsVisible = false;
-
-        SyncSettingsUi();
-        UpdateEconomyLabels();
+        // Settings live on a dedicated page now.
+        await Shell.Current.GoToAsync("settings");
     }
 
     private void Shop_Clicked(object sender, EventArgs e)
@@ -1181,7 +1224,7 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
         if (_settingsOpenedFromPause)
         {
             // Return to pause menu
-            PauseOverlay.IsVisible = true;
+            _hud.IsPaused = true;
         }
         else
         {
@@ -1274,11 +1317,10 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
     private void PauseGameLoop()
     {
         _engine.State.IsPaused = true;
+        _hud.IsPaused = true;
+
         PauseButton.Text = "Pause";
         UpdateHintForState(force: true);
-
-        PauseOverlay.IsVisible = true;
-        PauseButton.IsVisible = false;
 
         // ✅ Pause music so it resumes at same spot
         PauseMusic();
@@ -1290,14 +1332,14 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
         GameView.Invalidate();
     }
 
+
     private void ResumeGameLoop()
     {
         _engine.State.IsPaused = false;
+        _hud.IsPaused = false;
+
         PauseButton.Text = "Pause";
         UpdateHintForState(force: true);
-
-        PauseOverlay.IsVisible = false;
-        PauseButton.IsVisible = true;
 
         _sw.Restart();
         _timer.Start();
@@ -1306,6 +1348,7 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
         // ✅ Resume music where it paused
         EnsureCorrectAudioForState();
     }
+
 
     // -----------------------
     // Pause overlay buttons
@@ -1319,25 +1362,13 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
     private void PauseRestart_Clicked(object sender, EventArgs e)
     {
         // Restart the run from scratch and continue playing
-        PauseOverlay.IsVisible = false;
         StartGameFromMenu();
     }
 
-    private void PauseSettings_Clicked(object sender, EventArgs e)
+    private async void PauseSettings_Clicked(object sender, EventArgs e)
     {
-        _settingsOpenedFromPause = true;
-
-        // While paused, don't show the "Erase User Data" option.
-        SetEraseDataControlsVisible(false);
-
-        PauseOverlay.IsVisible = false;
-        SettingsOverlay.IsVisible = true;
-        MainMenuOverlay.IsVisible = false;
-        ShopOverlay.IsVisible = false;
-        HowToOverlay.IsVisible = false;
-
-        SyncSettingsUi();
-        UpdateEconomyLabels();
+        // Settings live on a dedicated page now.
+        await Shell.Current.GoToAsync("settings");
     }
 
     private void PauseMainMenu_Clicked(object sender, EventArgs e)

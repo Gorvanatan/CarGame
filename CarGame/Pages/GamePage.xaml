@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:CarGame.ViewModels"
+             x:Class="CarGame.Pages.GamePage"
+             x:DataType="viewModels:GamePageViewModel"
+             BackgroundColor="Black"
+             Shell.NavBarIsVisible="False">
+
+    <Grid>
+        <!-- Game Canvas -->
+        <GraphicsView x:Name="GameView" />
+
+        <!-- HUD -->
+        <Grid Padding="16" RowDefinitions="Auto,*" InputTransparent="True">
+
+            <Grid RowDefinitions="Auto,Auto,Auto"
+                  ColumnDefinitions="*,*"
+                  RowSpacing="6"
+                  ColumnSpacing="18"
+                  HorizontalOptions="Fill"
+                  VerticalOptions="Start">
+
+                <!-- Row 0 -->
+                <Label Text="{Binding ScoreText}"
+                       TextColor="White"
+                       FontSize="18"
+                       Grid.Row="0"
+                       Grid.Column="0"
+                       HorizontalTextAlignment="Start" />
+
+                <Label Text="{Binding CoinsText}"
+                       TextColor="White"
+                       FontSize="18"
+                       Grid.Row="0"
+                       Grid.Column="1"
+                       HorizontalTextAlignment="End" />
+
+                <!-- Row 1 (High score under Score so it never overlaps Pause) -->
+                <Label Text="{Binding HighScoreText}"
+                       TextColor="White"
+                       FontSize="14"
+                       Grid.Row="1"
+                       Grid.Column="0"
+                       HorizontalTextAlignment="Start" />
+
+                <!-- Row 2 -->
+                <Label Text="{Binding LivesText}"
+                       TextColor="White"
+                       FontSize="18"
+                       Grid.Row="2"
+                       Grid.Column="0"
+                       HorizontalTextAlignment="Start" />
+
+                <Label Text="{Binding InvincibleText}"
+                       TextColor="Yellow"
+                       FontSize="18"
+                       IsVisible="{Binding IsInvincible}"
+                       Grid.Row="2"
+                       Grid.Column="1"
+                       HorizontalTextAlignment="End" />
+            </Grid>
+
+            <Label Text="{Binding HintText}"
+                   Grid.Row="1"
+                   TextColor="White"
+                   Opacity="0.8"
+                   VerticalOptions="End"
+                   HorizontalOptions="Center"
+                   Margin="0,0,0,30" />
+        </Grid>
+
+        <!-- Pause button (hidden while paused / game over) -->
+        <Button Text="Pause"
+                WidthRequest="90"
+                HeightRequest="42"
+                HorizontalOptions="End"
+                VerticalOptions="Start"
+                Margin="0,12,12,0"
+                Command="{Binding PauseCommand}"
+                IsVisible="{Binding CanPause}" />
+
+        <!-- PAUSE OVERLAY -->
+        <Grid BackgroundColor="#B0000000"
+              IsVisible="{Binding IsPaused}"
+              Padding="20">
+
+            <ScrollView VerticalOptions="Center"
+                        HorizontalOptions="Center"
+                        HorizontalScrollBarVisibility="Never">
+
+                <Frame Padding="22"
+                       CornerRadius="22"
+                       HasShadow="True"
+                       BackgroundColor="#202020"
+                       BorderColor="#3A3A3A"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       MaximumWidthRequest="360">
+
+                    <VerticalStackLayout Spacing="14"
+                                         WidthRequest="260"
+                                         HorizontalOptions="Center">
+
+                        <Label Text="Paused"
+                               FontSize="26"
+                               TextColor="White"
+                               HorizontalTextAlignment="Center" />
+
+                        <Button Text="Resume"
+                                WidthRequest="220"
+                                HorizontalOptions="Center"
+                                Command="{Binding ResumeCommand}" />
+
+                        <Button Text="Restart Run"
+                                WidthRequest="220"
+                                HorizontalOptions="Center"
+                                Command="{Binding RestartCommand}" />
+
+                        <Button Text="Settings"
+                                WidthRequest="220"
+                                HorizontalOptions="Center"
+                                Command="{Binding SettingsCommand}" />
+
+                        <Button Text="Main Menu"
+                                WidthRequest="220"
+                                HorizontalOptions="Center"
+                                Command="{Binding MenuCommand}" />
+                    </VerticalStackLayout>
+                </Frame>
+            </ScrollView>
+        </Grid>
+
+        <!-- GAME OVER OVERLAY -->
+        <Grid BackgroundColor="#B0000000"
+              IsVisible="{Binding IsGameOver}"
+              Padding="20">
+
+            <ScrollView>
+                <Frame Padding="22"
+                       CornerRadius="22"
+                       HasShadow="True"
+                       BackgroundColor="#202020"
+                       BorderColor="#3A3A3A"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center">
+
+                    <VerticalStackLayout Spacing="12" MaximumWidthRequest="360" HorizontalOptions="Center">
+                        <Label Text="Game Over"
+                               FontSize="28"
+                               TextColor="White"
+                               HorizontalTextAlignment="Center" />
+
+                        <Label Text="{Binding FinalScoreText}"
+                               FontSize="16"
+                               TextColor="#CFCFCF"
+                               HorizontalTextAlignment="Center" />
+
+                        <Label Text="{Binding FinalTimeAliveText}"
+                               FontSize="16"
+                               TextColor="#CFCFCF"
+                               HorizontalTextAlignment="Center" />
+
+                        <Label Text="{Binding FinalHighScoreText}"
+                               FontSize="16"
+                               TextColor="#CFCFCF"
+                               HorizontalTextAlignment="Center" />
+
+                        <Label Text="{Binding FinalCoinsRunText}"
+                               FontSize="14"
+                               TextColor="#AFAFAF"
+                               HorizontalTextAlignment="Center" />
+
+                        <Label Text="{Binding FinalCoinsHeldText}"
+                               FontSize="14"
+                               TextColor="#AFAFAF"
+                               HorizontalTextAlignment="Center"
+                               Margin="0,-6,0,0" />
+
+                        <Label Text="NEW HIGH SCORE!"
+                               FontSize="14"
+                               TextColor="Gold"
+                               HorizontalTextAlignment="Center"
+                               IsVisible="{Binding IsNewHighScore}"
+                               Margin="0,6,0,0" />
+
+                        <Button Text="Restart Run"
+                                WidthRequest="220"
+                                Command="{Binding RestartCommand}" />
+
+                        <Button Text="Main Menu"
+                                WidthRequest="220"
+                                Command="{Binding MenuCommand}" />
+                    </VerticalStackLayout>
+                </Frame>
+            </ScrollView>
+        </Grid>
+    </Grid>
+</ContentPage>
