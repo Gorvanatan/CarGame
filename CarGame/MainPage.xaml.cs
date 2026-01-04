@@ -4,12 +4,15 @@ using Microsoft.Maui.Storage;
 using Microsoft.Maui.Graphics;
 using Plugin.Maui.Audio;
 using System.Diagnostics;
+using System.IO;
 
 namespace CarGame;
 
 public partial class MainPage : ContentPage
 {
     private const string PrefSelectedCar = "selected_car_sprite";
+    private const string PrefCustomCarPath = "custom_car_path";
+    private const string CustomCarKey = "customcar";
     private const string PrefHighScore = "highscore";
 
     // Economy
@@ -28,7 +31,7 @@ public partial class MainPage : ContentPage
 
     // Upgrades (shared with GameEngine)
     private const string PrefMaxHealth = "max_health"; // int, 3..6
-    private const string PrefInvincibilityDurationSeconds = "invincibility_duration_seconds"; // int, 10..12
+    private const string PrefInvincibilityDurationSeconds = "invincibility_duration_seconds"; // int, 6..12
 
     // Audio settings
     private const string PrefMasterVolume = "master_volume"; // 0..1
@@ -54,7 +57,8 @@ public partial class MainPage : ContentPage
     private const int UpgradeCost = 50;
     private const int MaxHealthCap = 6;
     private const int BaseHealth = 3;
-    private const int BaseInvSeconds = 10;
+    // Base invincibility = 6s. Upgrade adds +2s each time, up to 12s (6 -> 8 -> 10 -> 12)
+    private const int BaseInvSeconds = 6;
     private const int MaxInvSeconds = 12;
 
     private int _coinsHeld;
@@ -129,6 +133,18 @@ public partial class MainPage : ContentPage
 
         // Load selected car (persisted) but fall back if it's not owned
         var savedCar = Preferences.Default.Get(PrefSelectedCar, DefaultCar);
+
+        // If the saved selection is a custom car but the file is missing, fall back safely.
+        if (savedCar.Equals(CustomCarKey, StringComparison.OrdinalIgnoreCase))
+        {
+            var customPath = Preferences.Default.Get(PrefCustomCarPath, string.Empty);
+            if (string.IsNullOrWhiteSpace(customPath) || !File.Exists(customPath))
+            {
+                savedCar = DefaultCar;
+                Preferences.Default.Set(PrefSelectedCar, savedCar);
+            }
+        }
+
 
         // Migration: older versions used redcar.png as the 25-coin unlock.
         if (savedCar.Equals("redcar.png", StringComparison.OrdinalIgnoreCase))
@@ -413,7 +429,9 @@ public partial class MainPage : ContentPage
 
         // Music is independent of the SFX toggle
         try { if (_musicPlayer is not null) _musicPlayer.Volume = BaseMusicVol * master; } catch { }
-        try { if (_starMusicPlayer is not null) _starMusicPlayer.Volume = BaseStarMusicVol * master; } catch { }
+
+        // Star (invincibility) music is treated like SFX: it should not play when SFX is off.
+        try { if (_starMusicPlayer is not null) _starMusicPlayer.Volume = BaseStarMusicVol * master * sfxMult; } catch { }
     }
 
     private void VolumeSlider_ValueChanged(object sender, ValueChangedEventArgs e)
@@ -429,6 +447,12 @@ public partial class MainPage : ContentPage
         _sfxEnabled = e.Value;
         Preferences.Default.Set(PrefSfxEnabled, _sfxEnabled);
         ApplyAudioSettings();
+
+        if (!_sfxEnabled)
+        {
+            // If the invincibility track was playing, stop it immediately.
+            StopStarMusicAndReset();
+        }
 
         // If gameplay is active, make sure the correct loops are playing/paused.
         if (!_inMainMenu && !_engine.State.IsPaused)
@@ -451,6 +475,8 @@ public partial class MainPage : ContentPage
         Preferences.Default.Set(PrefCoinsEarnedTotal, 0);
         Preferences.Default.Set(PrefHighScore, 0);
         Preferences.Default.Set(PrefSelectedCar, DefaultCar);
+        Preferences.Default.Set(PrefCustomCarPath, string.Empty);
+        await _drawable.Sprites.SetCustomCarAsync(null);
 
         // Owned cars
         Preferences.Default.Set(PrefOwnedPurple, false);
@@ -894,6 +920,18 @@ public partial class MainPage : ContentPage
         _engine.Reset();
         // Apply saved car (only if owned)
         var savedCar = Preferences.Default.Get(PrefSelectedCar, DefaultCar);
+
+        // If the saved selection is a custom car but the file is missing, fall back safely.
+        if (savedCar.Equals(CustomCarKey, StringComparison.OrdinalIgnoreCase))
+        {
+            var customPath = Preferences.Default.Get(PrefCustomCarPath, string.Empty);
+            if (string.IsNullOrWhiteSpace(customPath) || !File.Exists(customPath))
+            {
+                savedCar = DefaultCar;
+                Preferences.Default.Set(PrefSelectedCar, savedCar);
+            }
+        }
+
         _engine.State.SelectedCarSprite = IsCarOwned(savedCar) ? savedCar : DefaultCar;
         UpdateSelectedCarLabel();
 
@@ -910,7 +948,15 @@ public partial class MainPage : ContentPage
         StopStarMusicAndReset();
     }
 
-    // -----------------------
+    
+    private static string FormatTime(double seconds)
+    {
+        var t = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        // Show h:mm:ss if >= 1 hour, else m:ss
+        return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
+    }
+
+// -----------------------
     // Game Over screen
 // -----------------------
 private void ShowGameOverOverlay()
@@ -932,6 +978,8 @@ private void ShowGameOverOverlay()
     // Update summary text
     if (FinalScoreLabel is not null)
         FinalScoreLabel.Text = $"Score: {_engine.State.Score}";
+    if (FinalTimeAliveLabel is not null)
+        FinalTimeAliveLabel.Text = $"Time Alive: {FormatTime(_engine.State.TimeAlive)}";
     if (FinalHighScoreLabel is not null)
         FinalHighScoreLabel.Text = $"High Score: {_engine.State.HighScore}";
     if (FinalCoinsRunLabel is not null)
@@ -978,6 +1026,7 @@ private void GameOverMenu_Clicked(object sender, EventArgs e)
             "redcar.png" => "Purple", // legacy / migration safety
             "bluecar.png" => "Blue",
             "greencar.png" => "Green",
+            CustomCarKey => "Custom",
             _ => "Yellow"
         };
 
@@ -1004,6 +1053,10 @@ private void GameOverMenu_Clicked(object sender, EventArgs e)
             "purplecar.png" => Preferences.Default.Get(PrefOwnedPurple, false),
             "bluecar.png" => Preferences.Default.Get(PrefOwnedBlue, false),
             "greencar.png" => Preferences.Default.Get(PrefOwnedGreen, false),
+
+            // Custom is available if the file exists
+            CustomCarKey => File.Exists(Preferences.Default.Get(PrefCustomCarPath, string.Empty)),
+
             _ => true, // yellow (and any unknown) is always available
         };
     }
@@ -1047,6 +1100,8 @@ private void GameOverMenu_Clicked(object sender, EventArgs e)
     {
         _engine.State.SelectedCarSprite = DefaultCar;
         Preferences.Default.Set(PrefSelectedCar, DefaultCar);
+        Preferences.Default.Set(PrefCustomCarPath, string.Empty);
+        _ = _drawable.Sprites.SetCustomCarAsync(null);
     }
 
     // Car tiles (make selected/owned/locked obvious)
@@ -1158,6 +1213,50 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
     private async void CarYellow_Clicked(object sender, EventArgs e) => await HandleCarClicked(DefaultCar);
     private async void CarRed_Clicked(object sender, EventArgs e) => await HandleCarClicked("purplecar.png");
     private async void CarBlue_Clicked(object sender, EventArgs e) => await HandleCarClicked("bluecar.png");
+
+    private async void CustomCarUpload_Clicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var result = await FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = "Pick an image for your car",
+                FileTypes = FilePickerFileType.Images
+            });
+
+            if (result is null)
+                return;
+
+            var ext = Path.GetExtension(result.FileName);
+            if (string.IsNullOrWhiteSpace(ext))
+                ext = ".png";
+
+            // Copy into app data so we can read it reliably later.
+            var destPath = Path.Combine(FileSystem.AppDataDirectory, $"customcar{ext.ToLowerInvariant()}");
+            await using (var src = await result.OpenReadAsync())
+            await using (var dst = File.Open(destPath, FileMode.Create, FileAccess.Write))
+            {
+                await src.CopyToAsync(dst);
+            }
+
+            Preferences.Default.Set(PrefCustomCarPath, destPath);
+
+            // Warm the sprite cache so it shows instantly.
+            await _drawable.Sprites.SetCustomCarAsync(destPath);
+
+            // Select it
+            _engine.State.SelectedCarSprite = CustomCarKey;
+            Preferences.Default.Set(PrefSelectedCar, CustomCarKey);
+
+            UpdateSelectedCarLabel();
+            GameView.Invalidate();
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Couldn't use that image", ex.Message, "OK");
+        }
+    }
+
     private async void CarGreen_Clicked(object sender, EventArgs e) => await HandleCarClicked("greencar.png");
 
     // -----------------------
@@ -1251,6 +1350,9 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
     // -----------------------
     private void OnInvincibilityStarted()
     {
+        // If SFX is off, don't switch to the star track.
+        if (!_sfxEnabled) return;
+
         // Pause normal audio, play star music from the beginning
         PauseMusic();
         PauseEngineRev();
@@ -1267,7 +1369,8 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
 
     private void EnsureCorrectAudioForState()
     {
-        if (_engine.State.IsInvincible)
+        // If SFX is off, we never want the invincibility track to override normal music.
+        if (_engine.State.IsInvincible && _sfxEnabled)
         {
             // Star music overrides
             PauseMusic();

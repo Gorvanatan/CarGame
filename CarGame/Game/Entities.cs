@@ -5,7 +5,10 @@ public enum EntityKind
     Enemy,
     Coin,
     Fuel,
-    Star
+    Star,
+
+    // Background decoration (non-collidable)
+    Tree
 }
 
 public sealed class PlayerCar

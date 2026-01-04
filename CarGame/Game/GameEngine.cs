@@ -28,6 +28,7 @@ public sealed class GameEngine
     private double _coinSpawnT;
     private double _fuelSpawnT;
     private double _starSpawnT;
+    private double _treeSpawnT;
 
     // --- Spawn rules (no "queue" above the screen) ---
     // Caps prevent the game from flooding the screen if timers get small.
@@ -35,6 +36,7 @@ public sealed class GameEngine
     private const int MaxCoinsActive = 3;
     private const int MaxFuelActive = 1;
     private const int MaxStarsActive = 1;
+    private const int MaxTreesActive = 4;
 
     // Minimum spacing for ENEMIES per lane: don't spawn another enemy in a lane
     // if an enemy in that lane is still within this many pixels of the top.
@@ -45,7 +47,7 @@ public sealed class GameEngine
 
     // Persisted upgrade keys (set by Shop)
     private const string PrefMaxHealth = "max_health"; // int (default 3)
-    private const string PrefInvincibilityDurationSeconds = "invincibility_duration_seconds"; // int (default 10)
+    private const string PrefInvincibilityDurationSeconds = "invincibility_duration_seconds"; // int (default 6)
 
     public GameEngine() => Reset();
 
@@ -58,7 +60,8 @@ public sealed class GameEngine
 
         // Load upgrades
         State.MaxLives = Math.Clamp(Preferences.Default.Get(PrefMaxHealth, 3), 3, 6);
-        State.InvincibilityDuration = Math.Clamp(Preferences.Default.Get(PrefInvincibilityDurationSeconds, 10), 6, 60);
+        // Base = 6s, upgradable in +2s steps up to 12s.
+        State.InvincibilityDuration = Math.Clamp(Preferences.Default.Get(PrefInvincibilityDurationSeconds, 6), 6, 12);
 
         State.Lives = State.MaxLives;
         State.IsGameOver = false;
@@ -66,6 +69,7 @@ public sealed class GameEngine
 
         State.ScorePrecise = 0;
         State.CoinsThisRun = 0;
+        State.TimeAlive = 0;
         State.BgScroll = 0;
 
         State.IsInvincible = false;
@@ -82,6 +86,7 @@ public sealed class GameEngine
         _coinSpawnT = 6.0;
         _fuelSpawnT = 12.0;
         _starSpawnT = 16.0;
+        _treeSpawnT = 2.5;
 
         _hitCooldown = 0;
 
@@ -107,7 +112,13 @@ public sealed class GameEngine
 
         State.ViewWidth = width;
         State.ViewHeight = height;
-        State.LaneWidth = width / 3.0;
+
+        // Road is centered with grass shoulders on both sides.
+        // Shoulder size is a % of screen width, clamped so it looks good on phone + desktop.
+        State.ShoulderWidth = Math.Clamp(width * 0.18, 40, width * 0.28);
+        State.RoadLeft = State.ShoulderWidth;
+        State.RoadWidth = Math.Max(0, width - (State.ShoulderWidth * 2));
+        State.LaneWidth = State.RoadWidth / 3.0;
 
         // Size player relative to lane width, but cap it so it doesn't get huge on wide windows.
         var desiredW = State.LaneWidth * 0.24;
@@ -125,7 +136,7 @@ public sealed class GameEngine
         State.Player.X = targetX;
     }
 
-    private double LaneCenterX(int lane) => State.LaneWidth * (lane + 0.5);
+    private double LaneCenterX(int lane) => State.RoadLeft + (State.LaneWidth * (lane + 0.5));
 
     private static double SpawnAtTopY(double entityHeight)
         => -entityHeight - 10;
@@ -219,6 +230,9 @@ public sealed class GameEngine
         var scale = Math.Clamp(State.RenderScale, 0.1, 2.0);
         var worldSpeed = State.ScrollSpeed / scale;
 
+        // Time alive
+        State.TimeAlive += dt;
+
         // Score increases the longer you survive
         State.ScorePrecise += dt * State.PointsPerSecond;
 
@@ -253,6 +267,7 @@ public sealed class GameEngine
         _coinSpawnT -= dt;
         _fuelSpawnT -= dt;
         _starSpawnT -= dt;
+        _treeSpawnT -= dt;
 
         if (_enemySpawnT <= 0)
         {
@@ -311,6 +326,16 @@ if (_starSpawnT <= 0)
     }
 }
 
+        if (_treeSpawnT <= 0)
+        {
+            // --- Trees (background decoration on the grass shoulders) ---
+            if (ActiveCount(EntityKind.Tree) < MaxTreesActive && SpawnTree())
+                _treeSpawnT = RandomRange(1.4, 2.6);
+            else
+                _treeSpawnT = 0.6;
+        }
+
+
         // Move entities downward
         for (int i = State.Entities.Count - 1; i >= 0; i--)
         {
@@ -332,6 +357,9 @@ if (_starSpawnT <= 0)
 
             switch (e.Kind)
             {
+                case EntityKind.Tree:
+                    // Decoration: no gameplay effect
+                    break;
                 case EntityKind.Enemy:
                     // While invincible, you can plow through enemies.
                     if (State.IsInvincible)
@@ -436,6 +464,52 @@ private bool SpawnStar()
     // Star is rare and should feel "clean" when it appears.
     return TrySpawnInAnyLane(EntityKind.Star, padding: 26);
 }
+
+    private bool SpawnTree()
+    {
+        // Trees are purely visual, spawned on the grass shoulders (left/right of the road).
+        if (State.ShoulderWidth <= 8) return false;
+
+        // Size is based on shoulder width, with a cap so it doesn't get huge on desktop.
+        var maxW = Math.Min(State.ShoulderWidth * 0.75, State.ViewHeight * 0.18);
+        var minW = Math.Min(State.ShoulderWidth * 0.45, State.ViewHeight * 0.12);
+        var w = RandomRange(minW, maxW);
+        var h = w; // tree sprite is roughly square
+
+        var y = SpawnAtTopY(h);
+
+        bool leftSide = _rng.NextDouble() < 0.5;
+        double minX, maxX;
+
+        if (leftSide)
+        {
+            minX = 6;
+            maxX = Math.Max(minX, State.RoadLeft - w - 6);
+        }
+        else
+        {
+            minX = State.RoadRight + 6;
+            maxX = Math.Max(minX, State.ViewWidth - w - 6);
+        }
+
+        var x = RandomRange(minX, maxX);
+
+        // Avoid spawning on top of other entities (mainly other trees at the top).
+        if (!IsAreaClear(x, y, w, h, padding: 12))
+            return false;
+
+        State.Entities.Add(new Entity
+        {
+            Kind = EntityKind.Tree,
+            X = x,
+            Y = y,
+            Width = w,
+            Height = h
+        });
+
+        return true;
+    }
+
 
     private static bool Intersects(double ax, double ay, double aw, double ah,
                                    double bx, double by, double bw, double bh)

@@ -14,6 +14,12 @@ public sealed class GameState
     public double ViewHeight { get; set; }
     public double LaneWidth { get; set; }
 
+    // Road layout (road is centered, grass shoulders on both sides)
+    public double RoadLeft { get; set; }
+    public double RoadWidth { get; set; }
+    public double ShoulderWidth { get; set; }
+    public double RoadRight => RoadLeft + RoadWidth;
+
     // Gameplay
     // MaxLives can be upgraded (persisted via Preferences and loaded by the engine)
     public int MaxLives { get; set; } = 3;
@@ -29,6 +35,9 @@ public sealed class GameState
     // Coins collected in the current run (used for unlockables / total coins)
     public int CoinsThisRun { get; set; } = 0;
 
+    // Time alive in the current run (seconds)
+    public double TimeAlive { get; set; } = 0;
+
     // High score (persisted)
     public int HighScore { get; set; } = 0;
     public bool IsNewHighScore { get; set; } = false;
@@ -42,7 +51,8 @@ public sealed class GameState
     public int InvincibleSecondsLeft => (int)Math.Ceiling(Math.Max(0, InvincibleRemaining));
 
     // Default invincibility duration when collecting a star (can be upgraded)
-    public double InvincibilityDuration { get; set; } = 10.0;
+    // Base = 6s, upgradable in +2s steps (6 -> 8 -> 10 -> 12)
+    public double InvincibilityDuration { get; set; } = 6.0;
 
     // World speed (pixels/sec)
     public double ScrollSpeed { get; set; } = 520;

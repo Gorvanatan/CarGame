@@ -39,6 +39,7 @@ public sealed class GameDrawable : IDrawable
         canvas.Scale(RenderScale, RenderScale);
 
         DrawBackground(canvas, worldW, worldH);
+        DrawDecorations(canvas);
         DrawPlayer(canvas);
         DrawEntities(canvas);
 
@@ -69,31 +70,72 @@ public sealed class GameDrawable : IDrawable
 
     private void DrawBackground(ICanvas canvas, float w, float h)
     {
-        // Grass (kept for later shoulders)
+        var s = _engine.State;
+
+        float roadLeft = (float)s.RoadLeft;
+        float roadW = (float)s.RoadWidth;
+        float roadRight = roadLeft + roadW;
+
+        // Grass shoulders
         canvas.FillColor = Colors.DarkGreen;
         canvas.FillRectangle(0, 0, w, h);
 
-        // Road
+        // Road (center)
         canvas.FillColor = Colors.DimGray;
-        canvas.FillRectangle(0, 0, w, h);
+        canvas.FillRectangle(roadLeft, 0, roadW, h);
 
-        // Edge shading
-        canvas.FillColor = Colors.Gray;
-        canvas.FillRectangle(0, 0, 10, h);
-        canvas.FillRectangle(w - 10, 0, 10, h);
+        // Subtle moving road texture (very cheap)
+        canvas.FillColor = new Color(0, 0, 0, 0.06f);
+        float spacing = 140f;
+        float bandH = 70f;
+        float y0 = (float)(-(s.BgScroll * 0.15) % spacing);
+        for (float y = y0; y < h; y += spacing)
+            canvas.FillRectangle(roadLeft, y, roadW, bandH);
 
-        // Lane dividers (3 lanes -> 2 divider lines)
-        float laneW = w / 3f;
+        // Road edge shading + white shoulder line
+        canvas.FillColor = new Color(0, 0, 0, 0.18f);
+        canvas.FillRectangle(roadLeft, 0, 10, h);
+        canvas.FillRectangle(roadRight - 10, 0, 10, h);
+
+        canvas.StrokeColor = Colors.White;
+        canvas.StrokeSize = 3;
+        canvas.DrawLine(roadLeft + 2, 0, roadLeft + 2, h);
+        canvas.DrawLine(roadRight - 2, 0, roadRight - 2, h);
+
+        // Lane dividers (3 lanes -> 2 divider lines) inside the road
+        float laneW = (float)s.LaneWidth;
 
         canvas.StrokeColor = Colors.White;
         canvas.StrokeSize = 6;
         canvas.StrokeDashPattern = new float[] { 35, 35 };
 
         float dashCycle = 70f; // dash+gap = 35+35
-        canvas.StrokeDashOffset = (float)(-_engine.State.BgScroll % dashCycle);
+        canvas.StrokeDashOffset = (float)(-s.BgScroll % dashCycle);
 
-        canvas.DrawLine(laneW, 0, laneW, h);
-        canvas.DrawLine(laneW * 2, 0, laneW * 2, h);
+        canvas.DrawLine(roadLeft + laneW, 0, roadLeft + laneW, h);
+        canvas.DrawLine(roadLeft + laneW * 2, 0, roadLeft + laneW * 2, h);
+
+        // Reset dash so other strokes aren't dashed
+        canvas.StrokeDashPattern = null;
+        canvas.StrokeDashOffset = 0;
+    }
+
+
+    private void DrawDecorations(ICanvas canvas)
+    {
+        // Trees (background decoration) live in the grass shoulders.
+        foreach (var e in _engine.State.Entities)
+        {
+            if (e.Kind != EntityKind.Tree) continue;
+
+            if (Sprites.Tree is not null)
+                canvas.DrawImage(Sprites.Tree, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
+            else
+            {
+                canvas.FillColor = Colors.ForestGreen;
+                canvas.FillRoundedRectangle((float)e.X, (float)e.Y, (float)e.Width, (float)e.Height, 14);
+            }
+        }
     }
 
     private void DrawPlayer(ICanvas canvas)
@@ -126,6 +168,8 @@ public sealed class GameDrawable : IDrawable
     {
         foreach (var e in _engine.State.Entities)
         {
+            if (e.Kind == EntityKind.Tree) continue;
+
             switch (e.Kind)
             {
                 case EntityKind.Enemy:
