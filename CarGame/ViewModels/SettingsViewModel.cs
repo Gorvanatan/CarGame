@@ -7,6 +7,8 @@ namespace CarGame.ViewModels;
 public sealed class SettingsViewModel : BaseViewModel
 {
     private readonly IProfileService _profile;
+
+    // delegates allow the viewmodel to show alerts without referencing a page directly
     private readonly Func<string, string, Task>? _alert;
     private readonly Func<string, string, string, string, Task<bool>>? _confirm;
 
@@ -82,6 +84,7 @@ public sealed class SettingsViewModel : BaseViewModel
         _alert = alert;
         _confirm = confirm;
 
+        // commands keep button actions out of the xaml code-behind
         BackCommand = new Command(async () => await Shell.Current.GoToAsync(".."));
         EraseDataCommand = new Command(async () => await EraseAsync());
 
@@ -101,7 +104,7 @@ public sealed class SettingsViewModel : BaseViewModel
 
     private async Task EraseAsync()
     {
-        // If no confirm delegate is provided, fail safe (do nothing).
+        // if no confirm delegate is provided, fail safe (do nothing)
         if (_confirm is null)
             return;
 
@@ -114,7 +117,7 @@ public sealed class SettingsViewModel : BaseViewModel
         if (!ok)
             return;
 
-        // Try delete custom image file too (optional cleanup)
+        // try delete custom image file too (optional cleanup)
         var customPath = _profile.CustomCarPath;
 
         _profile.EraseAll();

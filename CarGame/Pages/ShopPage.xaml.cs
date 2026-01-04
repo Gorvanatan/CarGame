@@ -6,68 +6,80 @@ using Microsoft.Maui.Storage;
 
 namespace CarGame.Pages;
 
+// shop page that lets the player buy cars and upgrades
 public partial class ShopPage : ContentPage
 {
-    private readonly ShopViewModel _vm;
+    // keeps the viewmodel alive for the lifetime of the page
+    private readonly ShopViewModel _shopViewModel;
 
     public ShopPage()
     {
+        // loads xaml content for the page
         InitializeComponent();
 
-        var profile = TryGetService<IProfileService>() ?? new ProfileService();
-        _vm = new ShopViewModel(profile, async (title, msg) => await DisplayAlert(title, msg, "OK"));
-        BindingContext = _vm;
+        // tries to get services from maui dependency injection, but falls back safely
+        IProfileService profileService = TryGetService<IProfileService>() ?? new ProfileService();
+
+        _shopViewModel = new ShopViewModel(profileService, async (title, message) => await DisplayAlert(title, message, "OK"));
+        BindingContext = _shopViewModel;
     }
 
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        _vm.OnAppearing();
+
+        // refreshes coin totals and ownership flags when returning to the shop
+        _shopViewModel.OnAppearing();
     }
 
     private static T? TryGetService<T>() where T : class
     {
         try
         {
+            // reads the maui service provider from the current app handler
             return Application.Current?.Handler?.MauiContext?.Services.GetService(typeof(T)) as T;
         }
         catch
         {
+            // returns null if the service provider is not available yet
             return null;
         }
     }
 
-    private async void UploadCustomCar_Clicked(object sender, EventArgs e)
+    private async void UploadCustomCar_Clicked(object sender, EventArgs eventArgs)
     {
         try
         {
-            var result = await FilePicker.Default.PickAsync(new PickOptions
+            // opens a picker so the user can choose an image for a custom car skin
+            FileResult? pickedFile = await FilePicker.Default.PickAsync(new PickOptions
             {
                 PickerTitle = "Pick an image for your car",
                 FileTypes = FilePickerFileType.Images
             });
 
-            if (result is null)
+            if (pickedFile is null)
                 return;
 
-            var ext = Path.GetExtension(result.FileName);
-            if (string.IsNullOrWhiteSpace(ext))
-                ext = ".png";
+            string fileExtension = Path.GetExtension(pickedFile.FileName);
+            if (string.IsNullOrWhiteSpace(fileExtension))
+                fileExtension = ".png";
 
-            // Copy into app data so we can read it reliably later.
-            var destPath = Path.Combine(FileSystem.AppDataDirectory, $"customcar{ext.ToLowerInvariant()}");
+            // copies the file into app data so we can load it reliably later
+            string destinationPath = Path.Combine(FileSystem.AppDataDirectory, $"customcar{fileExtension.ToLowerInvariant()}");
 
-            await using (var src = await result.OpenReadAsync())
-            await using (var dst = File.Open(destPath, FileMode.Create, FileAccess.Write))
+            await using (Stream sourceStream = await pickedFile.OpenReadAsync())
+            await using (FileStream destinationStream = File.Open(destinationPath, FileMode.Create, FileAccess.Write))
             {
-                await src.CopyToAsync(dst);
+                await sourceStream.CopyToAsync(destinationStream);
             }
 
-            _vm.SetCustomCar(destPath);
+            // tells the viewmodel to save and select the custom car
+            _shopViewModel.SetCustomCar(destinationPath);
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            await DisplayAlert("Couldn't use that image", ex.Message, "OK");
+            // shows a friendly error if the image cannot be used
+            await DisplayAlert("Couldn't use that image", exception.Message, "OK");
         }
     }
 }

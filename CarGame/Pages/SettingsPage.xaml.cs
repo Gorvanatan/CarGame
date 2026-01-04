@@ -3,37 +3,47 @@ using CarGame.ViewModels;
 
 namespace CarGame.Pages;
 
+// settings page for audio and save data actions
 public partial class SettingsPage : ContentPage
 {
-    private readonly SettingsViewModel _vm;
+    // keeps the viewmodel alive for the lifetime of the page
+    private readonly SettingsViewModel _settingsViewModel;
 
     public SettingsPage()
     {
+        // loads xaml content for the page
         InitializeComponent();
 
-        var profile = TryGetService<IProfileService>() ?? new ProfileService();
-        _vm = new SettingsViewModel(
-            profile,
-            async (title, msg) => await DisplayAlert(title, msg, "OK"),
-            async (title, msg, accept, cancel) => await DisplayAlert(title, msg, accept, cancel));
+        // tries to get services from maui dependency injection, but falls back safely
+        IProfileService profileService = TryGetService<IProfileService>() ?? new ProfileService();
 
-        BindingContext = _vm;
+        // passes simple alert helpers into the viewmodel so commands can show messages
+        _settingsViewModel = new SettingsViewModel(
+            profileService,
+            async (title, message) => await DisplayAlert(title, message, "OK"),
+            async (title, message, accept, cancel) => await DisplayAlert(title, message, accept, cancel));
+
+        BindingContext = _settingsViewModel;
     }
 
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        _vm.OnAppearing();
+
+        // reloads current values when returning from another page
+        _settingsViewModel.OnAppearing();
     }
 
     private static T? TryGetService<T>() where T : class
     {
         try
         {
+            // reads the maui service provider from the current app handler
             return Application.Current?.Handler?.MauiContext?.Services.GetService(typeof(T)) as T;
         }
         catch
         {
+            // returns null if the service provider is not available yet
             return null;
         }
     }

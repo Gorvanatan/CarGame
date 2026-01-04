@@ -8,6 +8,8 @@ public sealed class MenuViewModel : BaseViewModel
 {
     private readonly IProfileService _profile;
 
+    // these strings are shown on the menu page and are updated when the page appears
+
     private string _highScoreText = "High Score: 0";
     public string HighScoreText
     {
@@ -38,6 +40,7 @@ public sealed class MenuViewModel : BaseViewModel
     {
         _profile = profile;
 
+        // commands keep button logic out of the xaml code-behind
         PlayCommand = new Command(async () => await Shell.Current.GoToAsync("game"));
         ShopCommand = new Command(async () => await Shell.Current.GoToAsync("shop"));
         SettingsCommand = new Command(async () => await Shell.Current.GoToAsync("settings"));
@@ -46,6 +49,7 @@ public sealed class MenuViewModel : BaseViewModel
 
     public void OnAppearing()
     {
+        // refresh displayed values from saved preferences
         HighScoreText = $"High Score: {_profile.HighScore}";
         CoinsHeldText = $"Coins Held: {_profile.CoinsHeld}";
         SelectedCarText = $"Selected Car: {CarName(_profile.SelectedCarSprite)}";
@@ -53,6 +57,7 @@ public sealed class MenuViewModel : BaseViewModel
 
     private static string CarName(string sprite)
     {
+        // map sprite filenames to friendly names for the menu
         return (sprite ?? string.Empty).Trim().ToLowerInvariant() switch
         {
             "yellowcar.png" => "Yellow",

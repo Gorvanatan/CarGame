@@ -11,6 +11,10 @@ public sealed class ShopViewModel : BaseViewModel
     private readonly IProfileService _profile;
     private readonly Func<string, string, Task>? _alert;
 
+    // this key is used across the app to represent the custom uploaded car
+    private const string CustomCarKey = "customcar";
+
+    // this list drives the shop car ui (items are shown with buy/select state)
     public ObservableCollection<CarOptionViewModel> Cars { get; } = new();
 
     private int _coinsHeld;
@@ -94,15 +98,15 @@ public sealed class ShopViewModel : BaseViewModel
     public ICommand BuyHealthUpgradeCommand { get; }
     public ICommand BuyInvUpgradeCommand { get; }
 
-    // Used by the page after a custom image is picked
+    // called by the page after a custom image is picked using FilePicker
     public void SetCustomCar(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath)) return;
 
         _profile.CustomCarPath = filePath;
-        _profile.SelectedCarSprite = "customcar";
+        _profile.SelectedCarSprite = CustomCarKey;
 
-        EnsureCarsIncludeCustom();
+        // select the custom car without adding it as a visible option in the car list
         LoadFromProfile();
     }
 
@@ -111,11 +115,13 @@ public sealed class ShopViewModel : BaseViewModel
         _profile = profile;
         _alert = alert;
 
+        // commands keep button logic out of the page code-behind
         BackCommand = new Command(async () => await Shell.Current.GoToAsync(".."));
         SelectOrBuyCarCommand = new Command<CarOptionViewModel>(async (c) => await SelectOrBuyAsync(c));
         BuyHealthUpgradeCommand = new Command(async () => await BuyHealthUpgradeAsync());
         BuyInvUpgradeCommand = new Command(async () => await BuyInvUpgradeAsync());
 
+        // build the shop list once, then load current ownership/coins/selection from prefs
         BuildCarList();
         LoadFromProfile();
     }
@@ -133,36 +139,17 @@ public sealed class ShopViewModel : BaseViewModel
         Cars.Add(new CarOptionViewModel("bluecar.png", "Blue", "car_blue.png", 50));
 
         Cars.Add(new CarOptionViewModel("greencar.png", "Green", "car_green.png", 75));
-
-        EnsureCarsIncludeCustom();
-    }
-
-    private void EnsureCarsIncludeCustom()
-    {
-        // If a custom path exists, show the custom option.
-        var path = _profile.CustomCarPath;
-        var hasCustom = !string.IsNullOrWhiteSpace(path) && File.Exists(path);
-        var already = Cars.Any(c => c.Key == "customcar");
-
-        if (hasCustom && !already)
-        {
-            Cars.Add(new CarOptionViewModel("customcar", "Custom", "car_yellow.png", 0));
-        }
-        else if (!hasCustom && already)
-        {
-            var custom = Cars.First(c => c.Key == "customcar");
-            Cars.Remove(custom);
-        }
     }
 
     private void LoadFromProfile()
     {
+        // load player wallet + upgrades
         CoinsHeld = _profile.CoinsHeld;
 
         MaxHealth = _profile.MaxHealth;
         InvSeconds = _profile.InvincibilitySeconds;
 
-        // Owned flags
+        // apply owned flags to each car option
         foreach (var car in Cars)
         {
             car.IsOwned = car.Key switch
@@ -171,7 +158,6 @@ public sealed class ShopViewModel : BaseViewModel
                 "purplecar.png" => _profile.OwnedPurple,
                 "bluecar.png" => _profile.OwnedBlue,
                 "greencar.png" => _profile.OwnedGreen,
-                "customcar" => !string.IsNullOrWhiteSpace(_profile.CustomCarPath) && File.Exists(_profile.CustomCarPath),
                 _ => false
             };
 
@@ -179,6 +165,20 @@ public sealed class ShopViewModel : BaseViewModel
         }
 
         var selectedKey = _profile.SelectedCarSprite;
+
+        // if a custom car is selected and the file exists, show it in the selected text
+        var hasCustomCar = !string.IsNullOrWhiteSpace(_profile.CustomCarPath) && File.Exists(_profile.CustomCarPath);
+        if (hasCustomCar && string.Equals(selectedKey, CustomCarKey, StringComparison.OrdinalIgnoreCase))
+        {
+            // leave all car tiles unselected so the list stays as the built-in cars only
+            SelectedCarName = "Custom";
+            OnPropertyChanged(nameof(SelectedCarText));
+
+            RefreshUpgradeButtonStates();
+            RefreshCarButtonStates();
+            OnPropertyChanged(nameof(Cars));
+            return;
+        }
         if (selectedKey.Equals("redcar.png", StringComparison.OrdinalIgnoreCase))
             selectedKey = "purplecar.png";
 
@@ -193,16 +193,15 @@ public sealed class ShopViewModel : BaseViewModel
         RefreshUpgradeButtonStates();
         RefreshCarButtonStates();
 
-        // Force UI refresh of triggers
+        // force ui refresh of triggers
         OnPropertyChanged(nameof(Cars));
     }
 
     private void RefreshUpgradeButtonStates()
     {
-        const int upgradeCost = 50;
-
-        CanBuyHealthUpgrade = MaxHealth < 6 && CoinsHeld >= upgradeCost;
-        CanBuyInvUpgrade = InvSeconds < 12 && CoinsHeld >= upgradeCost;
+        // keep buttons clickable when not maxed so we can show a popup if coins are low
+        CanBuyHealthUpgrade = MaxHealth < 6;
+        CanBuyInvUpgrade = InvSeconds < 12;
 
         (BuyHealthUpgradeCommand as Command)?.ChangeCanExecute();
         (BuyInvUpgradeCommand as Command)?.ChangeCanExecute();
@@ -214,29 +213,20 @@ public sealed class ShopViewModel : BaseViewModel
     {
         if (car is null) return;
 
-        // Custom requires existing file; if missing, don't allow selecting.
-        if (car.Key == "customcar")
-        {
-            var ok = !string.IsNullOrWhiteSpace(_profile.CustomCarPath) && File.Exists(_profile.CustomCarPath);
-            if (!ok)
-            {
-                if (_alert is not null)
-                    await _alert("Custom Car", "No custom image found. Use the upload button to choose one.");
-                return;
-            }
-        }
-
         if (car.IsOwned)
         {
             SelectCar(car);
             return;
         }
 
-        // Buy flow
+        // buy flow
         if (CoinsHeld < car.Cost)
         {
             if (_alert is not null)
-                await _alert("Not enough coins", $"You need {car.Cost} coins to unlock {car.DisplayName}.");
+                await _alert(
+                    "Not enough coins",
+                    $"you need {car.Cost} coins to unlock {car.DisplayName}.\nyou currently have {CoinsHeld} coins."
+                );
             return;
         }
 
@@ -248,19 +238,24 @@ public sealed class ShopViewModel : BaseViewModel
 
         SelectCar(car);
 
-        // Notify UI
+        // notify UI
         OnPropertyChanged(nameof(CoinsHeldText));
         OnPropertyChanged(nameof(Cars));
     }
 
-    private void SelectCar(CarOptionViewModel car)
+    private void SelectCar(CarOptionViewModel selectedCar)
     {
-        foreach (var c in Cars) c.IsSelected = false;
-        car.IsSelected = true;
+        // clear previous selection
+        foreach (var carOption in Cars) carOption.IsSelected = false;
 
-        _profile.SelectedCarSprite = car.Key;
+        // mark the chosen car as selected
+        selectedCar.IsSelected = true;
 
-        SelectedCarName = car.DisplayName;
+        // save the selected car key so the game can use it
+        _profile.SelectedCarSprite = selectedCar.Key;
+
+        // update the ui label
+        SelectedCarName = selectedCar.DisplayName;
         OnPropertyChanged(nameof(SelectedCarText));
         OnPropertyChanged(nameof(Cars));
     }
@@ -282,7 +277,10 @@ public sealed class ShopViewModel : BaseViewModel
         if (CoinsHeld < upgradeCost)
         {
             if (_alert is not null)
-                await _alert("Not enough coins", "You need 50 coins for this upgrade.");
+                await _alert(
+                    "Not enough coins",
+                    $"you need {upgradeCost} coins for this upgrade.\nyou currently have {CoinsHeld} coins."
+                );
             return;
         }
 
@@ -302,7 +300,10 @@ public sealed class ShopViewModel : BaseViewModel
         if (CoinsHeld < upgradeCost)
         {
             if (_alert is not null)
-                await _alert("Not enough coins", "You need 50 coins for this upgrade.");
+                await _alert(
+                    "Not enough coins",
+                    $"you need {upgradeCost} coins for this upgrade.\nyou currently have {CoinsHeld} coins."
+                );
             return;
         }
 

@@ -4,8 +4,8 @@ namespace CarGame.UI;
 
 public sealed class GameDrawable : IDrawable
 {
-    // Zoom out slightly so the player can see more road ahead ("longer lanes").
-    // 1.0 = normal. 0.8 = show ~25% more vertical space.
+    // zoom out slightly so the player can see more road ahead ("longer lanes")
+    // 1.0 = normal, and lower values show more vertical space
     private const float RenderScale = 1.0f;
 
     private readonly GameEngine _engine;
@@ -14,108 +14,108 @@ public sealed class GameDrawable : IDrawable
     public GameDrawable(GameEngine engine) => _engine = engine;
 
     /// <summary>
-    /// Loads sprites (safe to call multiple times).
+    /// loads sprites (safe to call multiple times).
     /// </summary>
     public Task LoadImagesAsync() => Sprites.EnsureLoadedAsync();
 
     public void Draw(ICanvas canvas, RectF dirtyRect)
     {
-        // Kick off sprite loading once (non-blocking) in case caller didn't await it.
+        // kick off sprite loading once (non-blocking) in case caller didn't await it
         if (!Sprites.IsLoaded)
             _ = Sprites.EnsureLoadedAsync();
 
-        // Set the render scale so the engine can keep on-screen speeds consistent.
+        // set the render scale so the engine can keep on-screen speeds consistent.
         _engine.State.RenderScale = RenderScale;
 
-        // Resize the game "world" to be larger than the screen; we then scale
+        // resize the game "world" to be larger than the screen; we then scale
         // the canvas down, which effectively zooms the camera out.
         _engine.Resize(dirtyRect.Width / RenderScale, dirtyRect.Height / RenderScale);
 
-        float worldW = (float)_engine.State.ViewWidth;
-        float worldH = (float)_engine.State.ViewHeight;
+        float worldWidth = (float)_engine.State.ViewWidth;
+        float worldHeight = (float)_engine.State.ViewHeight;
 
-        // World rendering (scaled)
+        // world rendering (scaled)
         canvas.SaveState();
         canvas.Scale(RenderScale, RenderScale);
 
-        DrawBackground(canvas, worldW, worldH);
+        DrawBackground(canvas, worldWidth, worldHeight);
         DrawDecorations(canvas);
         DrawPlayer(canvas);
         DrawEntities(canvas);
 
         canvas.RestoreState();
 
-        // UI overlays (unscaled)
-        float w = dirtyRect.Width;
-        float h = dirtyRect.Height;
+        // uI overlays (unscaled)
+        float viewWidth = dirtyRect.Width;
+        float viewHeight = dirtyRect.Height;
 
         if (_engine.State.IsPaused && !_engine.State.IsGameOver)
-            DrawPaused(canvas, w, h);
+            DrawPaused(canvas, viewWidth, viewHeight);
 
         if (_engine.State.IsGameOver)
-            DrawGameOver(canvas, w, h, _engine.State.IsNewHighScore);
+            DrawGameOver(canvas, viewWidth, viewHeight, _engine.State.IsNewHighScore);
     }
 
-    private static void DrawPaused(ICanvas canvas, float w, float h)
+    private static void DrawPaused(ICanvas canvas, float canvasWidth, float canvasHeight)
     {
-        // Dim the screen
+        // dim the screen
         canvas.FillColor = new Color(0, 0, 0, 0.45f);
-        canvas.FillRectangle(0, 0, w, h);
+        canvas.FillRectangle(0, 0, canvasWidth, canvasHeight);
 
         canvas.FontColor = Colors.White;
         canvas.FontSize = 44;
-        canvas.DrawString("PAUSED", 0, h * 0.42f, w, 70,
+        canvas.DrawString("PAUSED", 0, canvasHeight * 0.42f, canvasWidth, 70,
             HorizontalAlignment.Center, VerticalAlignment.Center);
     }
 
-    private void DrawBackground(ICanvas canvas, float w, float h)
+    private void DrawBackground(ICanvas canvas, float worldWidth, float worldHeight)
     {
-        var s = _engine.State;
+        var gameState = _engine.State;
 
-        float roadLeft = (float)s.RoadLeft;
-        float roadW = (float)s.RoadWidth;
+        float roadLeft = (float)gameState.RoadLeft;
+        float roadW = (float)gameState.RoadWidth;
         float roadRight = roadLeft + roadW;
 
-        // Grass shoulders
+        // grass shoulders
         canvas.FillColor = Colors.DarkGreen;
-        canvas.FillRectangle(0, 0, w, h);
+        canvas.FillRectangle(0, 0, worldWidth, worldHeight);
 
-        // Road (center)
+        // road (center)
         canvas.FillColor = Colors.DimGray;
-        canvas.FillRectangle(roadLeft, 0, roadW, h);
+        canvas.FillRectangle(roadLeft, 0, roadW, worldHeight);
 
-        // Subtle moving road texture (very cheap)
+        // subtle moving road texture (very cheap)
         canvas.FillColor = new Color(0, 0, 0, 0.06f);
         float spacing = 140f;
         float bandH = 70f;
-        float y0 = (float)(-(s.BgScroll * 0.15) % spacing);
-        for (float y = y0; y < h; y += spacing)
-            canvas.FillRectangle(roadLeft, y, roadW, bandH);
+        float startBandY = (float)(-(gameState.BgScroll * 0.15) % spacing);
+        for (float bandY = startBandY; bandY < worldHeight; bandY += spacing)
+            canvas.FillRectangle(roadLeft, bandY, roadW, bandH);
 
-        // Road edge shading + white shoulder line
+        // road edge shading + white shoulder line
         canvas.FillColor = new Color(0, 0, 0, 0.18f);
-        canvas.FillRectangle(roadLeft, 0, 10, h);
-        canvas.FillRectangle(roadRight - 10, 0, 10, h);
+        canvas.FillRectangle(roadLeft, 0, 10, worldHeight);
+        canvas.FillRectangle(roadRight - 10, 0, 10, worldHeight);
 
         canvas.StrokeColor = Colors.White;
         canvas.StrokeSize = 3;
-        canvas.DrawLine(roadLeft + 2, 0, roadLeft + 2, h);
-        canvas.DrawLine(roadRight - 2, 0, roadRight - 2, h);
+        canvas.DrawLine(roadLeft + 2, 0, roadLeft + 2, worldHeight);
+        canvas.DrawLine(roadRight - 2, 0, roadRight - 2, worldHeight);
 
-        // Lane dividers (3 lanes -> 2 divider lines) inside the road
-        float laneW = (float)s.LaneWidth;
+        // lane dividers (3 lanes -> 2 divider lines) inside the road
+        float laneW = (float)gameState.LaneWidth;
 
         canvas.StrokeColor = Colors.White;
         canvas.StrokeSize = 6;
         canvas.StrokeDashPattern = new float[] { 35, 35 };
 
         float dashCycle = 70f; // dash+gap = 35+35
-        canvas.StrokeDashOffset = (float)(-s.BgScroll % dashCycle);
+        canvas.StrokeDashOffset = (float)(-gameState.BgScroll % dashCycle);
 
-        canvas.DrawLine(roadLeft + laneW, 0, roadLeft + laneW, h);
-        canvas.DrawLine(roadLeft + laneW * 2, 0, roadLeft + laneW * 2, h);
+        canvas.DrawLine(roadLeft + laneW, 0, roadLeft + laneW, worldHeight);
+        canvas.DrawLine(roadLeft + laneW * 2, 0, roadLeft + laneW * 2, worldHeight);
 
-        // Reset dash so other strokes aren't dashed
+        // reset dash so other strokes aren't dashed
         canvas.StrokeDashPattern = null;
         canvas.StrokeDashOffset = 0;
     }
@@ -123,114 +123,114 @@ public sealed class GameDrawable : IDrawable
 
     private void DrawDecorations(ICanvas canvas)
     {
-        // Trees (background decoration) live in the grass shoulders.
-        foreach (var e in _engine.State.Entities)
+        // trees (background decoration) live in the grass shoulders
+        foreach (var entity in _engine.State.Entities)
         {
-            if (e.Kind != EntityKind.Tree) continue;
+            if (entity.Kind != EntityKind.Tree) continue;
 
             if (Sprites.Tree is not null)
-                canvas.DrawImage(Sprites.Tree, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
+                canvas.DrawImage(Sprites.Tree, (float)entity.PositionX, (float)entity.PositionY, (float)entity.Width, (float)entity.Height);
             else
             {
                 canvas.FillColor = Colors.ForestGreen;
-                canvas.FillRoundedRectangle((float)e.X, (float)e.Y, (float)e.Width, (float)e.Height, 14);
+                canvas.FillRoundedRectangle((float)entity.PositionX, (float)entity.PositionY, (float)entity.Width, (float)entity.Height, 14);
             }
         }
     }
 
     private void DrawPlayer(ICanvas canvas)
     {
-        var p = _engine.State.Player;
+        var player = _engine.State.Player;
 
         var playerSprite = Sprites.GetCar(_engine.State.SelectedCarSprite) ?? Sprites.Player;
 
         if (playerSprite is not null)
         {
-            canvas.DrawImage(playerSprite, (float)p.X, (float)p.Y, (float)p.Width, (float)p.Height);
+            canvas.DrawImage(playerSprite, (float)player.PositionX, (float)player.PositionY, (float)player.Width, (float)player.Height);
 
-            // Simple visual indicator when invincible: draw a star above the car.
+            // simple visual indicator when invincible: draw a star above the car
             if (_engine.State.IsInvincible && Sprites.Star is not null)
             {
-                var s = (float)(p.Width * 0.55);
-                var sx = (float)(p.X + (p.Width - s) / 2);
-                var sy = (float)(p.Y - s * 0.75);
-                canvas.DrawImage(Sprites.Star, sx, sy, s, s);
+                var starSize = (float)(player.Width * 0.55);
+                var starX = (float)(player.PositionX + (player.Width - starSize) / 2);
+                var starY = (float)(player.PositionY - starSize * 0.75);
+                canvas.DrawImage(Sprites.Star, starX, starY, starSize, starSize);
             }
             return;
         }
 
-        // Fallback
+        // fallback
         canvas.FillColor = Colors.DodgerBlue;
-        canvas.FillRoundedRectangle((float)p.X, (float)p.Y, (float)p.Width, (float)p.Height, 14);
+        canvas.FillRoundedRectangle((float)player.PositionX, (float)player.PositionY, (float)player.Width, (float)player.Height, 14);
     }
 
     private void DrawEntities(ICanvas canvas)
     {
-        foreach (var e in _engine.State.Entities)
+        foreach (var entity in _engine.State.Entities)
         {
-            if (e.Kind == EntityKind.Tree) continue;
+            if (entity.Kind == EntityKind.Tree) continue;
 
-            switch (e.Kind)
+            switch (entity.Kind)
             {
                 case EntityKind.Enemy:
                     if (Sprites.Enemy is not null)
-                        canvas.DrawImage(Sprites.Enemy, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
+                        canvas.DrawImage(Sprites.Enemy, (float)entity.PositionX, (float)entity.PositionY, (float)entity.Width, (float)entity.Height);
                     else
                     {
                         canvas.FillColor = Colors.Red;
-                        canvas.FillRoundedRectangle((float)e.X, (float)e.Y, (float)e.Width, (float)e.Height, 12);
+                        canvas.FillRoundedRectangle((float)entity.PositionX, (float)entity.PositionY, (float)entity.Width, (float)entity.Height, 12);
                     }
                     break;
 
                 case EntityKind.Coin:
                     if (Sprites.Coin is not null)
-                        canvas.DrawImage(Sprites.Coin, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
+                        canvas.DrawImage(Sprites.Coin, (float)entity.PositionX, (float)entity.PositionY, (float)entity.Width, (float)entity.Height);
                     else
                     {
                         canvas.FillColor = Colors.Gold;
-                        canvas.FillEllipse((float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
+                        canvas.FillEllipse((float)entity.PositionX, (float)entity.PositionY, (float)entity.Width, (float)entity.Height);
                     }
                     break;
 
                 case EntityKind.Fuel:
                     if (Sprites.Fuel is not null)
-                        canvas.DrawImage(Sprites.Fuel, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
+                        canvas.DrawImage(Sprites.Fuel, (float)entity.PositionX, (float)entity.PositionY, (float)entity.Width, (float)entity.Height);
                     else
                     {
                         canvas.FillColor = Colors.LimeGreen;
-                        canvas.FillRoundedRectangle((float)e.X, (float)e.Y, (float)e.Width, (float)e.Height, 10);
+                        canvas.FillRoundedRectangle((float)entity.PositionX, (float)entity.PositionY, (float)entity.Width, (float)entity.Height, 10);
                     }
                     break;
 
                 case EntityKind.Star:
                     if (Sprites.Star is not null)
-                        canvas.DrawImage(Sprites.Star, (float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
+                        canvas.DrawImage(Sprites.Star, (float)entity.PositionX, (float)entity.PositionY, (float)entity.Width, (float)entity.Height);
                     else
                     {
                         canvas.FillColor = Colors.Yellow;
-                        canvas.FillEllipse((float)e.X, (float)e.Y, (float)e.Width, (float)e.Height);
+                        canvas.FillEllipse((float)entity.PositionX, (float)entity.PositionY, (float)entity.Width, (float)entity.Height);
                     }
                     break;
             }
         }
     }
 
-    private static void DrawGameOver(ICanvas canvas, float w, float h, bool newHighScore)
+    private static void DrawGameOver(ICanvas canvas, float canvasWidth, float canvasHeight, bool isNewHighScore)
     {
         canvas.FontColor = Colors.White;
         canvas.FontSize = 44;
-        canvas.DrawString("GAME OVER", 0, h * 0.38f, w, 70,
+        canvas.DrawString("GAME OVER", 0, canvasHeight * 0.38f, canvasWidth, 70,
             HorizontalAlignment.Center, VerticalAlignment.Center);
 
         canvas.FontSize = 20;
-        canvas.DrawString("Returning to menu...", 0, h * 0.46f, w, 40,
+        canvas.DrawString("Returning to menu...", 0, canvasHeight * 0.46f, canvasWidth, 40,
             HorizontalAlignment.Center, VerticalAlignment.Center);
 
 
-        if (newHighScore)
+        if (isNewHighScore)
         {
             canvas.FontSize = 22;
-            canvas.DrawString("NEW HIGH SCORE!", 0, h * 0.52f, w, 40,
+            canvas.DrawString("NEW HIGH SCORE!", 0, canvasHeight * 0.52f, canvasWidth, 40,
                 HorizontalAlignment.Center, VerticalAlignment.Center);
         }
     }

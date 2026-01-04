@@ -7,18 +7,14 @@ using Microsoft.Maui.Controls;
 namespace CarGame.ViewModels;
 
 /// <summary>
-/// Part 4C (verified): The Game page ViewModel owns run state and UI state.
-/// The renderer/physics remain in the engine + page code-behind; the VM:
-///  - exposes bindable HUD + overlays
-///  - implements Commands for pause/resume/restart/menu/settings
-///  - synchronizes persistence (coins held/earned + high score) via IProfileService
+/// game page viewmodel that exposes bindable hud/overlay state and command actions.
 /// </summary>
 public sealed class GamePageViewModel : BaseViewModel
 {
     private readonly GameEngine _engine;
     private readonly IProfileService _profile;
 
-    // HUD state
+    // hud state
     private int _score;
     private int _highScore;
     private int _coinsThisRun;
@@ -27,11 +23,11 @@ public sealed class GamePageViewModel : BaseViewModel
     private string _invincibleText = "INV";
     private string _hintText = "Swipe left/right to change lanes";
 
-    // Overlay state
+    // overlay state
     private bool _isPaused;
     private bool _isGameOver;
 
-    // Game over summary
+    // game over summary
     private string _finalScoreText = "Score: 0";
     private string _finalTimeAliveText = "Time Alive: 0:00";
     private string _finalHighScoreText = "High Score: 0";
@@ -52,23 +48,23 @@ public sealed class GamePageViewModel : BaseViewModel
         SettingsCommand = new Command(() => NavigateRequested?.Invoke("settings"));
         MenuCommand = new Command(() => NavigateRequested?.Invoke("//menu"));
 
-        // Initial sync
+        // initial sync
         SyncFromEngine();
     }
 
-    // Events handled by the page (timer/audio/navigation)
+    // events handled by the page (timer/audio/navigation)
     public event Action<bool>? PauseStateChanged;
     public event Action? RestartRequested;
     public event Action<string>? NavigateRequested;
 
-    // Commands
+    // commands
     public ICommand PauseCommand { get; }
     public ICommand ResumeCommand { get; }
     public ICommand RestartCommand { get; }
     public ICommand SettingsCommand { get; }
     public ICommand MenuCommand { get; }
 
-    // HUD properties
+    // hud properties
     public int Score
     {
         get => _score;
@@ -135,7 +131,7 @@ public sealed class GamePageViewModel : BaseViewModel
         set => SetProperty(ref _hintText, value);
     }
 
-    // Overlay properties
+    // overlay properties
     public bool IsPaused
     {
         get => _isPaused;
@@ -164,7 +160,7 @@ public sealed class GamePageViewModel : BaseViewModel
 
     public bool CanPause => !IsPaused && !IsGameOver;
 
-    // Game over summary properties
+    // game over summary properties
     public string FinalScoreText
     {
         get => _finalScoreText;
@@ -218,41 +214,45 @@ public sealed class GamePageViewModel : BaseViewModel
 
     public void SyncFromEngine()
     {
-        var s = _engine.State;
+        // reads the current engine state and mirrors it into bindable properties
+        GameState gameState = _engine.State;
 
-        Score = s.Score;
-        HighScore = Math.Max(_profile.HighScore, s.HighScore);
-        CoinsThisRun = s.CoinsThisRun;
-        LivesText = s.LivesText;
-        IsInvincible = s.IsInvincible;
-        InvincibleText = s.IsInvincible ? $"INV: {s.InvincibleSecondsLeft}s" : "INV";
+        Score = gameState.Score;
+        HighScore = Math.Max(_profile.HighScore, gameState.HighScore);
+        CoinsThisRun = gameState.CoinsThisRun;
+        LivesText = gameState.LivesText;
+        IsInvincible = gameState.IsInvincible;
+        InvincibleText = gameState.IsInvincible ? $"INV: {gameState.InvincibleSecondsLeft}s" : "INV";
 
-        // Detect transition into game over exactly once
-        if (s.IsGameOver && !_lastGameOver)
+        // detect transition into game over exactly once
+        if (gameState.IsGameOver && !_lastGameOver)
         {
             _lastGameOver = true;
             IsPaused = false;
             IsGameOver = true;
-            BuildGameOverSummary(s);
+            BuildGameOverSummary(gameState);
 
-            // Ensure profile is in sync with engine’s persisted high score
-            if (s.HighScore > _profile.HighScore)
-                _profile.HighScore = s.HighScore;
+            // ensure profile is in sync with engine’s persisted high score
+            if (gameState.HighScore > _profile.HighScore)
+                _profile.HighScore = gameState.HighScore;
         }
     }
 
-    private void BuildGameOverSummary(GameState s)
+    // builds the strings shown on the game over overlay
+    private void BuildGameOverSummary(GameState gameState)
     {
-        FinalScoreText = $"Score: {s.Score}";
+        FinalScoreText = $"Score: {gameState.Score}";
 
-        var t = TimeSpan.FromSeconds(Math.Max(0, s.TimeAlive));
-        var timeText = t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
+        TimeSpan timeAlive = TimeSpan.FromSeconds(Math.Max(0, gameState.TimeAlive));
+        string timeText = timeAlive.TotalHours >= 1
+            ? timeAlive.ToString(@"h\:mm\:ss")
+            : timeAlive.ToString(@"m\:ss");
         FinalTimeAliveText = $"Time Alive: {timeText}";
 
-        FinalHighScoreText = $"High Score: {Math.Max(_profile.HighScore, s.HighScore)}";
-        FinalCoinsRunText = $"Coins this run: {s.CoinsThisRun}";
+        FinalHighScoreText = $"High Score: {Math.Max(_profile.HighScore, gameState.HighScore)}";
+        FinalCoinsRunText = $"Coins this run: {gameState.CoinsThisRun}";
         FinalCoinsHeldText = $"Coins held: {_profile.CoinsHeld}";
-        IsNewHighScore = s.IsNewHighScore;
+        IsNewHighScore = gameState.IsNewHighScore;
     }
 
     private void SetPaused(bool paused)

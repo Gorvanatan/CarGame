@@ -1,5 +1,6 @@
 namespace CarGame.Game;
 
+// entity types that can appear in the game world
 public enum EntityKind
 {
     Enemy,
@@ -7,61 +8,76 @@ public enum EntityKind
     Fuel,
     Star,
 
-    // Background decoration (non-collidable)
+    // background decoration (non-collidable)
     Tree
 }
 
+// player car state used by the engine and renderer
 public sealed class PlayerCar
 {
-    public double X, Y;
-    public double Width = 60, Height = 100;
+    // current top-left position of the player car
+    public double PositionX;
+    public double PositionY;
 
-    /// <summary>
-    /// Target lane index (0..2). The player smoothly lerps toward this lane.
-    /// </summary>
-    public int TargetLane = 1;
+    // player car size in pixels
+    public double Width = 60;
+    public double Height = 100;
+
+    // target lane index (0..2) that the player car moves toward smoothly
+    public int TargetLaneIndex = 1;
 }
 
+// a single enemy, pickup, or decoration in the world
 public sealed class Entity
 {
+    // the type of entity (enemy, coin, fuel, etc.)
     public EntityKind Kind;
-    public double X, Y;
-    public double Width, Height;
 
-    public static Entity Make(EntityKind kind, double laneCenterX, double y, GameState s)
+    // current top-left position of the entity
+    public double PositionX;
+    public double PositionY;
+
+    // size of the entity in pixels
+    public double Width;
+    public double Height;
+
+    public static Entity Create(EntityKind kind, double laneCenterX, double spawnY, GameState gameState)
     {
-        // Base size relative to lane width, with a cap so enemies/items don't get massive on desktop.
-        var desiredCarW = s.LaneWidth * 0.52;
-        var maxCarW = s.ViewHeight * 0.20;
-        var w = Math.Min(desiredCarW, maxCarW);
-        var h = w * 1.6;
+        // scale car width based on lane width, but cap it so it does not get huge on desktop
+        double desiredCarWidth = gameState.LaneWidth * 0.52;
+        double maxCarWidth = gameState.ViewHeight * 0.20;
+        double entityWidth = Math.Min(desiredCarWidth, maxCarWidth);
 
-        // Items are smaller than cars
+        // keep a consistent car-like aspect ratio for enemies by default
+        double entityHeight = entityWidth * 1.6;
+
+        // make pickups smaller than cars and mostly square
         if (kind == EntityKind.Coin)
         {
-            w *= 0.45;
-            h = w;
+            entityWidth *= 0.45;
+            entityHeight = entityWidth;
+        }
+        else if (kind == EntityKind.Fuel)
+        {
+            entityWidth *= 0.55;
+            entityHeight = entityWidth;
+        }
+        else if (kind == EntityKind.Star)
+        {
+            entityWidth *= 0.65;
+            entityHeight = entityWidth;
         }
 
-        if (kind == EntityKind.Fuel)
-        {
-            w *= 0.55;
-            h = w;
-        }
-
-        if (kind == EntityKind.Star)
-        {
-            w *= 0.65;
-            h = w;
-        }
+        // convert lane center into a top-left x so the entity is centered in the lane
+        double topLeftX = laneCenterX - (entityWidth / 2.0);
 
         return new Entity
         {
             Kind = kind,
-            X = laneCenterX - w / 2,
-            Y = y,
-            Width = w,
-            Height = h
+            PositionX = topLeftX,
+            PositionY = spawnY,
+            Width = entityWidth,
+            Height = entityHeight
         };
     }
 }

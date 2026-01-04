@@ -21,10 +21,10 @@ public partial class GamePage : ContentPage
     private readonly IProfileService _profile;
     private readonly GamePageViewModel _vm;
 
-    // Input (PanGesture works reliably across platforms)
+    // input (PanGesture works reliably across platforms)
     private double _panTotalX;
 
-    // Audio
+    // audio
     private double _masterVolume;
     private bool _sfxEnabled;
 
@@ -36,7 +36,7 @@ public partial class GamePage : ContentPage
     private IAudioPlayer? _engineRevPlayer;
     private IAudioPlayer? _starMusicPlayer;
 
-    // Base (per-sound) volumes multiplied by master
+    // base (per-sound) volumes multiplied by master
     private const double BaseCoinVol = 0.7;
     private const double BaseFuelVol = 0.8;
     private const double BaseDamageVol = 0.9;
@@ -49,14 +49,14 @@ public partial class GamePage : ContentPage
     {
         InitializeComponent();
 
-        // Resolve services (falls back safely)
+        // resolve services (falls back safely)
         _profile = Application.Current?.Handler?.MauiContext?.Services.GetService<IProfileService>()
                    ?? new ProfileService();
 
         _vm = new GamePageViewModel(_engine, _profile);
         _vm.NavigateRequested += async route =>
         {
-            // Reset to Menu root when requested.
+            // reset to Menu root when requested.
             if (route == "//menu")
                 await Shell.Current.GoToAsync("//menu");
             else
@@ -76,7 +76,7 @@ public partial class GamePage : ContentPage
         _drawable = new GameDrawable(_engine);
         GameView.Drawable = _drawable;
 
-        // Engine events (SFX + banking)
+        // engine events (SFX + banking)
         _engine.CoinCollected += OnCoinCollected;
         _engine.FuelCollected += OnFuelCollected;
         _engine.PlayerDamaged += OnPlayerDamaged;
@@ -84,7 +84,7 @@ public partial class GamePage : ContentPage
         _engine.InvincibilityStarted += OnInvincibilityStarted;
         _engine.InvincibilityEnded += OnInvincibilityEnded;
 
-        // Gestures
+        // gestures
         var pan = new PanGestureRecognizer();
         pan.PanUpdated += (_, e) =>
         {
@@ -109,12 +109,12 @@ public partial class GamePage : ContentPage
         GameView.GestureRecognizers.Clear();
         GameView.GestureRecognizers.Add(pan);
 
-        // Game loop (~60fps)
+        // game loop (~60fps)
         _timer = Dispatcher.CreateTimer();
         _timer.Interval = TimeSpan.FromMilliseconds(16);
         _timer.Tick += (_, __) => Tick();
 
-        // Load audio prefs and init audio
+        // load audio prefs and init audio
         LoadAudioPrefs();
         _ = InitAudioAsync();
 
@@ -124,7 +124,7 @@ public partial class GamePage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        // Re-read audio prefs when returning from SettingsPage
+        // re-read audio prefs when returning from SettingsPage
         LoadAudioPrefs();
         ApplyAudioSettings();
 
@@ -143,7 +143,7 @@ public partial class GamePage : ContentPage
     {
         StopAllAudio();
         _engine.Reset();
-        // Ensure selected car is used
+        // ensure selected car is used
         _engine.State.SelectedCarSprite = _profile.SelectedCarSprite;
 
         _vm.OnNewRunStarted();
@@ -165,7 +165,8 @@ public partial class GamePage : ContentPage
         if (_engine.State.IsGameOver)
         {
             PauseLoop();
-            StopAllAudio();
+            // stop background loops on game over but let the crash sound finish
+            StopGameOverAudio();
         }
 
         GameView.Invalidate();
@@ -192,7 +193,7 @@ public partial class GamePage : ContentPage
         _masterVolume = _profile.MasterVolume;
         _sfxEnabled = _profile.SfxEnabled;
 
-        // If SFX disabled, stop star music immediately
+        // if SFX disabled, stop star music immediately
         if (!_sfxEnabled)
             StopStarMusicAndReset();
     }
@@ -202,20 +203,20 @@ public partial class GamePage : ContentPage
         try
         {
             var audio = AudioManager.Current;
-            // SFX
+            // sFX
             _coinPlayer = audio.CreatePlayer(await FileSystem.OpenAppPackageFileAsync("Coinget.mp3"));
             _fuelPlayer = audio.CreatePlayer(await FileSystem.OpenAppPackageFileAsync("drinksound.mp3"));
             _damagePlayer = audio.CreatePlayer(await FileSystem.OpenAppPackageFileAsync("Damage.mp3"));
             _crashPlayer = audio.CreatePlayer(await FileSystem.OpenAppPackageFileAsync("carcrash.mp3"));
 
-            // Loops
+            // loops
             _engineRevPlayer = audio.CreatePlayer(await FileSystem.OpenAppPackageFileAsync("engine_rev.mp3"));
             _engineRevPlayer.Loop = true;
 
             _starMusicPlayer = audio.CreatePlayer(await FileSystem.OpenAppPackageFileAsync("starman.mp3"));
             _starMusicPlayer.Loop = true;
 
-            // Music (try common casing/extensions)
+            // music (try common casing/extensions)
             _musicPlayer = audio.CreatePlayer(await TryOpenAnyAsync(new[] { "Airwaves.mp3", "airwaves.mp3", "Airwaves.wav", "airwaves.wav" }));
             _musicPlayer.Loop = true;
 
@@ -223,7 +224,7 @@ public partial class GamePage : ContentPage
         }
         catch
         {
-            // Audio is optional for grading; fail quietly.
+            // audio is optional for grading; fail quietly.
         }
     }
 
@@ -250,17 +251,17 @@ public partial class GamePage : ContentPage
         var sfxMult = _sfxEnabled ? 1.0 : 0.0;
         try
         {
-            // Music is independent of the SFX toggle
+            // music is independent of the SFX toggle
             if (_musicPlayer is not null) _musicPlayer.Volume = BaseMusicVol * master;
 
-            // SFX/loops follow the SFX toggle
+            // sFX/loops follow the SFX toggle
             if (_engineRevPlayer is not null) _engineRevPlayer.Volume = BaseEngineVol * master * sfxMult;
             if (_coinPlayer is not null) _coinPlayer.Volume = BaseCoinVol * master * sfxMult;
             if (_fuelPlayer is not null) _fuelPlayer.Volume = BaseFuelVol * master * sfxMult;
             if (_damagePlayer is not null) _damagePlayer.Volume = BaseDamageVol * master * sfxMult;
             if (_crashPlayer is not null) _crashPlayer.Volume = BaseCrashVol * master * sfxMult;
 
-            // Star/invincibility track behaves like SFX
+            // star/invincibility track behaves like SFX
             if (_starMusicPlayer is not null) _starMusicPlayer.Volume = BaseStarMusicVol * master * sfxMult;
         }
         catch { }
@@ -269,7 +270,7 @@ public partial class GamePage : ContentPage
     // ---- Engine event handlers ----
     private void OnCoinCollected()
     {
-        // Bank immediately
+        // bank immediately
         _profile.CoinsHeld += 1;
         _profile.CoinsEarnedTotal += 1;
         _vm.NotifyCoinsHeldChanged();
@@ -283,7 +284,7 @@ public partial class GamePage : ContentPage
     private void OnPlayerDied()
     {
         TryPlay(_crashPlayer);
-        // Ensure high score is synced to profile (engine also persists)
+        // ensure high score is synced to profile (engine also persists)
         if (_engine.State.HighScore > _profile.HighScore)
             _profile.HighScore = _engine.State.HighScore;
     }
@@ -364,8 +365,29 @@ public partial class GamePage : ContentPage
         try { _starMusicPlayer?.Stop(); _starMusicPlayer?.Seek(0); } catch { }
     }
 
+    private void StopGameOverAudio()
+    {
+        // stop background loops on game over so the menu doesn't keep playing music
+        try { _musicPlayer?.Stop(); _musicPlayer?.Seek(0); } catch { }
+        try { _engineRevPlayer?.Stop(); _engineRevPlayer?.Seek(0); } catch { }
+        StopStarMusicAndReset();
+
+        // stop short sfx that could overlap the game over screen
+        try { _coinPlayer?.Stop(); _coinPlayer?.Seek(0); } catch { }
+        try { _fuelPlayer?.Stop(); _fuelPlayer?.Seek(0); } catch { }
+        try { _damagePlayer?.Stop(); _damagePlayer?.Seek(0); } catch { }
+
+        // do not stop the crash sound here so it can be heard
+    }
+
     private void StopAllAudio()
     {
+        // stop and reset all audio when leaving the page or starting a new run
+        try { _coinPlayer?.Stop(); _coinPlayer?.Seek(0); } catch { }
+        try { _fuelPlayer?.Stop(); _fuelPlayer?.Seek(0); } catch { }
+        try { _damagePlayer?.Stop(); _damagePlayer?.Seek(0); } catch { }
+        try { _crashPlayer?.Stop(); _crashPlayer?.Seek(0); } catch { }
+
         try { _musicPlayer?.Stop(); _musicPlayer?.Seek(0); } catch { }
         try { _engineRevPlayer?.Stop(); _engineRevPlayer?.Seek(0); } catch { }
         StopStarMusicAndReset();

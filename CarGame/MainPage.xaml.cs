@@ -16,29 +16,29 @@ public partial class MainPage : ContentPage
     private const string CustomCarKey = "customcar";
     private const string PrefHighScore = "highscore";
 
-    // Economy
+    // economy
     // - CoinsHeld: spendable currency (decreases when buying)
     // - CoinsEarnedTotal: lifetime earned (never decreases)
     private const string PrefCoinsHeld = "coins_held";
     private const string PrefCoinsEarnedTotal = "coins_earned_total";
 
-    // Legacy key (older builds used a single total that never decreased)
+    // legacy key (older builds used a single total that never decreased)
     private const string PrefTotalCoinsLegacy = "total_coins";
 
-    // Owned cars
+    // owned cars
     private const string PrefOwnedPurple = "owned_purple";
     private const string PrefOwnedBlue = "owned_blue";
     private const string PrefOwnedGreen = "owned_green";
 
-    // Upgrades (shared with GameEngine)
+    // upgrades (shared with GameEngine)
     private const string PrefMaxHealth = "max_health"; // int, 3..6
     private const string PrefInvincibilityDurationSeconds = "invincibility_duration_seconds"; // int, 6..12
 
-    // Audio settings
+    // audio settings
     private const string PrefMasterVolume = "master_volume"; // 0..1
     private const string PrefSfxEnabled = "sfx_enabled";
 
-    // Base (per-sound) volumes. These are multiplied by the master volume.
+    // base (per-sound) volumes. These are multiplied by the master volume.
     private const double BaseCoinVol = 0.7;
     private const double BaseFuelVol = 0.8;
     private const double BaseDamageVol = 0.9;
@@ -50,7 +50,7 @@ public partial class MainPage : ContentPage
     private const double DefaultMasterVolume = 0.5;
     private const string DefaultCar = "yellowcar.png";
 
-    // Car costs (coins held)
+    // car costs (coins held)
     private const int CostPurple = 25;
     private const int CostBlue = 50;
     private const int CostGreen = 75;
@@ -58,14 +58,14 @@ public partial class MainPage : ContentPage
     private const int UpgradeCost = 50;
     private const int MaxHealthCap = 6;
     private const int BaseHealth = 3;
-    // Base invincibility = 6s. Upgrade adds +2s each time, up to 12s (6 -> 8 -> 10 -> 12)
+    // base invincibility = 6s. Upgrade adds +2s each time, up to 12s (6 -> 8 -> 10 -> 12)
     private const int BaseInvSeconds = 6;
     private const int MaxInvSeconds = 12;
 
     private int _coinsHeld;
     private int _coinsEarnedTotal;
 
-    // Audio settings state
+    // audio settings state
     private double _masterVolume;
     private bool _sfxEnabled;
 
@@ -76,32 +76,32 @@ public partial class MainPage : ContentPage
     private readonly IDispatcherTimer _timer;
     private readonly Stopwatch _sw = new();
 
-    // For mouse + touch on Windows (PanGesture works reliably)
+    // for mouse + touch on Windows (PanGesture works reliably)
     private double _panTotalX = 0;
 
-    // Hint fade
+    // hint fade
     private CancellationTokenSource? _hintFadeCts;
     private bool _lastGameOver;
     private bool _lastPaused;
     private bool _gameOverShown;
 
-    // Coin SFX
+    // coin SFX
     private IAudioPlayer? _coinPlayer;
 
-    // Fuel SFX
+    // fuel SFX
     private IAudioPlayer? _fuelPlayer;
 
-    // Damage / crash SFX
+    // damage / crash SFX
     private IAudioPlayer? _damagePlayer;
     private IAudioPlayer? _crashPlayer;
 
-    // Background music (should RESUME on unpause)
+    // background music (should RESUME on unpause)
     private IAudioPlayer? _musicPlayer;
 
-    // Engine rev / loop (gameplay only)
+    // engine rev / loop (gameplay only)
     private IAudioPlayer? _engineRevPlayer;
 
-    // Star (invincibility) music
+    // star (invincibility) music
     private IAudioPlayer? _starMusicPlayer;
 
     private bool _inMainMenu = true;
@@ -119,11 +119,11 @@ public partial class MainPage : ContentPage
     {
         InitializeComponent();
 
-        // Part 4A: HUD-only MVVM binding
+        // part 4A: HUD-only MVVM binding
         BindingContext = _hud;
         _hud.UpdateFromState(_engine.State);
 
-        // Part 4B: route UI commands (pause/gameover buttons) through the ViewModel
+        // part 4B: route UI commands (pause/gameover buttons) through the ViewModel
         _hud.PauseRequested += () =>
         {
             if (_inMainMenu) return;
@@ -158,24 +158,24 @@ public partial class MainPage : ContentPage
         };
 
 
-        // Load audio settings
+        // load audio settings
         _masterVolume = Preferences.Default.Get(PrefMasterVolume, DefaultMasterVolume);
         _sfxEnabled = Preferences.Default.Get(PrefSfxEnabled, true);
 
-        // Sync settings UI (safe even if overlays are currently hidden)
+        // sync settings UI (safe even if overlays are currently hidden)
         if (VolumeSlider is not null)
             VolumeSlider.Value = Math.Clamp(_masterVolume, 0, 1);
         if (SfxSwitch is not null)
             SfxSwitch.IsToggled = _sfxEnabled;
         UpdateVolumeLabel();
 
-        // Load economy (with migration from older builds)
+        // load economy (with migration from older builds)
         LoadEconomyAndMigrateIfNeeded();
 
-        // Load selected car (persisted) but fall back if it's not owned
+        // load selected car (persisted) but fall back if it's not owned
         var savedCar = Preferences.Default.Get(PrefSelectedCar, DefaultCar);
 
-        // If the saved selection is a custom car but the file is missing, fall back safely.
+        // if the saved selection is a custom car but the file is missing, fall back safely.
         if (savedCar.Equals(CustomCarKey, StringComparison.OrdinalIgnoreCase))
         {
             var customPath = Preferences.Default.Get(PrefCustomCarPath, string.Empty);
@@ -187,7 +187,7 @@ public partial class MainPage : ContentPage
         }
 
 
-        // Migration: older versions used redcar.png as the 25-coin unlock.
+        // migration: older versions used redcar.png as the 25-coin unlock.
         if (savedCar.Equals("redcar.png", StringComparison.OrdinalIgnoreCase))
             savedCar = "purplecar.png";
         if (!IsCarOwned(savedCar))
@@ -202,7 +202,7 @@ public partial class MainPage : ContentPage
         _drawable = new GameDrawable(_engine);
         GameView.Drawable = _drawable;
 
-        // If your engine raises this event, we can play coin sound perfectly.
+        // if your engine raises this event, we can play coin sound perfectly.
         // (If it doesn't exist, remove these two lines and call OnCoinCollected() from your engine instead.)
         _engine.CoinCollected += OnCoinCollected;
         _engine.FuelCollected += OnFuelCollected;
@@ -213,7 +213,7 @@ public partial class MainPage : ContentPage
 
         _ = InitAudioAsync();
 
-        // PAN (mouse drag on Windows + touch on mobile)
+        // pAN (mouse drag on Windows + touch on mobile)
         var pan = new PanGestureRecognizer();
         pan.PanUpdated += (_, e) =>
         {
@@ -239,7 +239,7 @@ public partial class MainPage : ContentPage
             }
         };
 
-        // TAP to restart after game over (ignored while paused)
+        // tAP to restart after game over (ignored while paused)
         var tap = new TapGestureRecognizer();
         tap.Tapped += (_, __) =>
         {
@@ -253,15 +253,15 @@ public partial class MainPage : ContentPage
             }
         };
 
-        // Attach gestures to GameView (works fine in your setup)
+        // attach gestures to GameView (works fine in your setup)
         GameView.GestureRecognizers.Clear();
         GameView.GestureRecognizers.Add(pan);
         GameView.GestureRecognizers.Add(tap);
 
-        // Initial hint (menu will hide HUD anyway)
+        // initial hint (menu will hide HUD anyway)
         UpdateHintForState(force: true);
 
-        // Game loop (~60fps)
+        // game loop (~60fps)
         _timer = Dispatcher.CreateTimer();
         _timer.Interval = TimeSpan.FromMilliseconds(16);
         _timer.Tick += (_, __) =>
@@ -272,22 +272,22 @@ public partial class MainPage : ContentPage
             _engine.Update(dt);
             _hud.UpdateFromState(_engine.State);
 
-            // If the game ends, show the Game Over overlay.
+            // if the game ends, show the Game Over overlay.
             if (_engine.State.IsGameOver)
             {
                 if (!_gameOverShown)
                     ShowGameOverOverlay();
             }
-            // Disable pause on game over
+            // disable pause on game over
             PauseButton.IsEnabled = !_engine.State.IsGameOver;
 
-            // Only update hint text when state changes (so fade can work)
+            // only update hint text when state changes (so fade can work)
             UpdateHintForState(force: false);
 
             GameView.Invalidate();
         };
 
-        // Start on the main menu (do NOT start the game loop yet)
+        // start on the main menu (do NOT start the game loop yet)
         StartGameFromMenu();
     }
 
@@ -295,7 +295,7 @@ public partial class MainPage : ContentPage
     {
         base.OnAppearing();
 
-        // Settings are edited on a separate SettingsPage now, so re-load prefs here
+        // settings are edited on a separate SettingsPage now, so re-load prefs here
         // whenever the game page becomes visible again.
         var newMaster = Preferences.Default.Get(PrefMasterVolume, DefaultMasterVolume);
         var newSfx = Preferences.Default.Get(PrefSfxEnabled, true);
@@ -314,7 +314,7 @@ public partial class MainPage : ContentPage
 
             if (!_sfxEnabled)
             {
-                // If the invincibility track was playing, stop it immediately.
+                // if the invincibility track was playing, stop it immediately.
                 StopStarMusicAndReset();
             }
         }
@@ -361,13 +361,13 @@ public partial class MainPage : ContentPage
     }
 
     // -----------------------
-    // Audio init
+    // audio init
     // -----------------------
     private async Task InitAudioAsync()
     {
         try
         {
-            // Put coin_sfx.wav in Resources/Raw with Build Action = MauiAsset
+            // put coin_sfx.wav in Resources/Raw with Build Action = MauiAsset
             var stream = await FileSystem.OpenAppPackageFileAsync("Coinget.mp3");
             _coinPlayer = AudioManager.Current.CreatePlayer(stream);
             _coinPlayer.Volume = BaseCoinVol;
@@ -384,13 +384,13 @@ public partial class MainPage : ContentPage
             _crashPlayer = AudioManager.Current.CreatePlayer(crashStream);
             _crashPlayer.Volume = BaseCrashVol;
 
-            // Engine rev / loop (gameplay)
+            // engine rev / loop (gameplay)
             var engineStream = await FileSystem.OpenAppPackageFileAsync("engine_rev.mp3");
             _engineRevPlayer = AudioManager.Current.CreatePlayer(engineStream);
             _engineRevPlayer.Loop = true;
             _engineRevPlayer.Volume = BaseEngineRevVol;
 
-            // Star / invincibility music
+            // star / invincibility music
             var starStream = await FileSystem.OpenAppPackageFileAsync("starman.mp3");
             _starMusicPlayer = AudioManager.Current.CreatePlayer(starStream);
             _starMusicPlayer.Loop = true;
@@ -408,10 +408,10 @@ public partial class MainPage : ContentPage
 
         await InitMusicAsync();
 
-        // Apply persisted audio settings (volume + SFX toggle)
+        // apply persisted audio settings (volume + SFX toggle)
         ApplyAudioSettings();
 
-        // If the game is already running when audio finishes loading, start the engine loop.
+        // if the game is already running when audio finishes loading, start the engine loop.
         EnsureEngineRevPlaying();
     }
 
@@ -419,7 +419,7 @@ public partial class MainPage : ContentPage
     {
         try
         {
-            // Put Airwaves.mp3 (or Airwaves.wav) in Resources/Raw with Build Action = MauiAsset
+            // put Airwaves.mp3 (or Airwaves.wav) in Resources/Raw with Build Action = MauiAsset
             Stream stream;
             var candidates = new[] { "Airwaves.mp3", "airwaves.mp3", "Airwaves.wav", "airwaves.wav" };
             stream = null!;
@@ -444,7 +444,7 @@ public partial class MainPage : ContentPage
             _musicPlayer.Loop = true;
             _musicPlayer.Volume = BaseMusicVol;
 
-            // If we are already playing (not paused/gameover), start music now
+            // if we are already playing (not paused/gameover), start music now
             EnsureMusicPlaying();
         }
         catch
@@ -454,7 +454,7 @@ public partial class MainPage : ContentPage
     }
 
     // -----------------------
-    // Settings / audio prefs
+    // settings / audio prefs
     // -----------------------
     private void SyncSettingsUi()
     {
@@ -484,10 +484,10 @@ public partial class MainPage : ContentPage
         try { if (_crashPlayer is not null) _crashPlayer.Volume = BaseCrashVol * master * sfxMult; } catch { }
         try { if (_engineRevPlayer is not null) _engineRevPlayer.Volume = BaseEngineRevVol * master * sfxMult; } catch { }
 
-        // Music is independent of the SFX toggle
+        // music is independent of the SFX toggle
         try { if (_musicPlayer is not null) _musicPlayer.Volume = BaseMusicVol * master; } catch { }
 
-        // Star (invincibility) music is treated like SFX: it should not play when SFX is off.
+        // star (invincibility) music is treated like SFX: it should not play when SFX is off.
         try { if (_starMusicPlayer is not null) _starMusicPlayer.Volume = BaseStarMusicVol * master * sfxMult; } catch { }
     }
 
@@ -507,11 +507,11 @@ public partial class MainPage : ContentPage
 
         if (!_sfxEnabled)
         {
-            // If the invincibility track was playing, stop it immediately.
+            // if the invincibility track was playing, stop it immediately.
             StopStarMusicAndReset();
         }
 
-        // If gameplay is active, make sure the correct loops are playing/paused.
+        // if gameplay is active, make sure the correct loops are playing/paused.
         if (!_inMainMenu && !_engine.State.IsPaused)
             EnsureCorrectAudioForState();
     }
@@ -535,16 +535,16 @@ public partial class MainPage : ContentPage
         Preferences.Default.Set(PrefCustomCarPath, string.Empty);
         await _drawable.Sprites.SetCustomCarAsync(null);
 
-        // Owned cars
+        // owned cars
         Preferences.Default.Set(PrefOwnedPurple, false);
         Preferences.Default.Set(PrefOwnedBlue, false);
         Preferences.Default.Set(PrefOwnedGreen, false);
 
-        // Upgrades
+        // upgrades
         Preferences.Default.Set(PrefMaxHealth, BaseHealth);
         Preferences.Default.Set(PrefInvincibilityDurationSeconds, BaseInvSeconds);
 
-        // Reflect changes immediately in the current session
+        // reflect changes immediately in the current session
         _engine.State.HighScore = 0;
         _engine.State.IsNewHighScore = false;
         _engine.State.SelectedCarSprite = DefaultCar;
@@ -552,31 +552,31 @@ public partial class MainPage : ContentPage
         UpdateSelectedCarLabel();
         UpdateCoinsAndUnlockUI();
 
-        // Update HUD via MVVM binding
+        // update HUD via MVVM binding
         _hud.UpdateFromState(_engine.State);
 
         await DisplayAlert("Done", "Your data has been reset.", "OK");
     }
 
     // -----------------------
-    // Economy + upgrades
+    // economy + upgrades
     // -----------------------
     private void LoadEconomyAndMigrateIfNeeded()
     {
-        // Migrate from older builds where "total_coins" existed and never decreased.
+        // migrate from older builds where "total_coins" existed and never decreased.
         var legacy = Preferences.Default.Get(PrefTotalCoinsLegacy, 0);
 
         _coinsHeld = Preferences.Default.Get(PrefCoinsHeld, legacy);
         _coinsEarnedTotal = Preferences.Default.Get(PrefCoinsEarnedTotal, _coinsHeld);
         PersistEconomy();
 
-        // Migrate unlocks: if the user previously had enough coins (old threshold system), mark cars as owned.
+        // migrate unlocks: if the user previously had enough coins (old threshold system), mark cars as owned.
         var earned = _coinsEarnedTotal;
         if (earned >= CostPurple && !Preferences.Default.Get(PrefOwnedPurple, false)) Preferences.Default.Set(PrefOwnedPurple, true);
         if (earned >= CostBlue && !Preferences.Default.Get(PrefOwnedBlue, false)) Preferences.Default.Set(PrefOwnedBlue, true);
         if (earned >= CostGreen && !Preferences.Default.Get(PrefOwnedGreen, false)) Preferences.Default.Set(PrefOwnedGreen, true);
 
-        // Ensure upgrades have valid defaults
+        // ensure upgrades have valid defaults
         var mh = Math.Clamp(Preferences.Default.Get(PrefMaxHealth, BaseHealth), BaseHealth, MaxHealthCap);
         Preferences.Default.Set(PrefMaxHealth, mh);
 
@@ -660,7 +660,7 @@ public partial class MainPage : ContentPage
 
     private async Task HandleCarClicked(string spriteFile)
     {
-        // Default car is free
+        // default car is free
         if (spriteFile.Equals(DefaultCar, StringComparison.OrdinalIgnoreCase))
         {
             SelectCar(DefaultCar);
@@ -739,11 +739,11 @@ public partial class MainPage : ContentPage
     }
 
     // -----------------------
-    // Coin SFX
+    // coin SFX
     // -----------------------
     private void OnCoinCollected()
     {
-        // Bank coins immediately so quitting a run doesn't lose currency.
+        // bank coins immediately so quitting a run doesn't lose currency.
         AddCoins(amount: 1);
 
         try
@@ -752,7 +752,7 @@ public partial class MainPage : ContentPage
             if (_masterVolume <= 0) return;
             if (_coinPlayer is null) return;
 
-            // Stop resets to the beginning so it can be replayed instantly
+            // stop resets to the beginning so it can be replayed instantly
             _coinPlayer.Stop();
             _coinPlayer.Play();
         }
@@ -770,7 +770,7 @@ public partial class MainPage : ContentPage
             if (_masterVolume <= 0) return;
             if (_fuelPlayer is null) return;
 
-            // Stop resets to the beginning so it can be replayed instantly
+            // stop resets to the beginning so it can be replayed instantly
             _fuelPlayer.Stop();
             _fuelPlayer.Play();
         }
@@ -809,12 +809,12 @@ public partial class MainPage : ContentPage
         }
         catch { /* ignore */ }
 
-        // Coins are banked immediately on pickup.
+        // coins are banked immediately on pickup.
     }
 
 
     // -----------------------
-    // Music control (pause should RESUME position)
+    // music control (pause should RESUME position)
     // -----------------------
     private void EnsureMusicPlaying()
     {
@@ -825,7 +825,7 @@ public partial class MainPage : ContentPage
             if (_engine.State.IsGameOver) return;
             if (_engine.State.IsInvincible) return;
 
-            // Play() resumes from paused position
+            // play() resumes from paused position
             if (!_musicPlayer.IsPlaying)
                 _musicPlayer.Play();
         }
@@ -854,7 +854,7 @@ public partial class MainPage : ContentPage
         {
             if (_musicPlayer is null)
             {
-                // If audio hasn't loaded yet, try again once it is
+                // if audio hasn't loaded yet, try again once it is
                 EnsureMusicPlaying();
                 return;
             }
@@ -867,7 +867,7 @@ public partial class MainPage : ContentPage
     }
 
     // -----------------------
-    // Engine rev control (pause should RESUME position)
+    // engine rev control (pause should RESUME position)
     // -----------------------
     private void EnsureEngineRevPlaying()
     {
@@ -918,13 +918,13 @@ public partial class MainPage : ContentPage
     }
 
     // -----------------------
-    // Main menu / overlays
+    // main menu / overlays
     // -----------------------
     private void ShowMainMenu()
     {
         _inMainMenu = true;
 
-        // MVVM state (keeps pause button hidden and prevents pause overlay showing)
+        // mVVM state (keeps pause button hidden and prevents pause overlay showing)
         _hud.IsInMainMenu = true;
         _hud.IsPaused = false;
         _hud.IsGameOver = false;
@@ -938,7 +938,7 @@ public partial class MainPage : ContentPage
 
         HudGrid.IsVisible = false;
 
-        // Stop gameplay + music while in menu
+        // stop gameplay + music while in menu
         _engine.State.IsPaused = true;
         _timer.Stop();
         CancelHintFade();
@@ -948,7 +948,7 @@ public partial class MainPage : ContentPage
 
         UpdateCoinsAndUnlockUI();
 
-        // Keep HUD up to date for when you hit Play (MVVM binding)
+        // keep HUD up to date for when you hit Play (MVVM binding)
         _hud.UpdateFromState(_engine.State);
     }
 
@@ -957,7 +957,7 @@ public partial class MainPage : ContentPage
     {
         _inMainMenu = false;
 
-        // MVVM state (enables pause button, hides overlays)
+        // mVVM state (enables pause button, hides overlays)
         _hud.IsInMainMenu = false;
         _hud.IsPaused = false;
         _hud.IsGameOver = false;
@@ -971,17 +971,17 @@ public partial class MainPage : ContentPage
 
         HudGrid.IsVisible = true;
 
-        // Fresh run
+        // fresh run
         _crashPlayer?.Stop();
         _damagePlayer?.Stop();
         _coinPlayer?.Stop();
 
         _engine.Reset();
 
-        // Apply saved car (only if owned)
+        // apply saved car (only if owned)
         var savedCar = Preferences.Default.Get(PrefSelectedCar, DefaultCar);
 
-        // If the saved selection is a custom car but the file is missing, fall back safely.
+        // if the saved selection is a custom car but the file is missing, fall back safely.
         if (savedCar.Equals(CustomCarKey, StringComparison.OrdinalIgnoreCase))
         {
             var customPath = Preferences.Default.Get(PrefCustomCarPath, string.Empty);
@@ -995,7 +995,7 @@ public partial class MainPage : ContentPage
         _engine.State.SelectedCarSprite = IsCarOwned(savedCar) ? savedCar : DefaultCar;
         UpdateSelectedCarLabel();
 
-        // Fresh run HUD refresh (MVVM binding)
+        // fresh run HUD refresh (MVVM binding)
         _hud.UpdateFromState(_engine.State);
 
         PauseButton.Text = "Pause";
@@ -1012,36 +1012,38 @@ public partial class MainPage : ContentPage
     
     private static string FormatTime(double seconds)
     {
-        var t = TimeSpan.FromSeconds(Math.Max(0, seconds));
-        // Show h:mm:ss if >= 1 hour, else m:ss
-        return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
+        var timeAlive = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        // show h:mm:ss if >= 1 hour, else m:ss
+        return timeAlive.TotalHours >= 1
+            ? timeAlive.ToString(@"h\:mm\:ss")
+            : timeAlive.ToString(@"m\:ss");
     }
 
 // -----------------------
-    // Game Over screen
+    // game Over screen
 // -----------------------
     private void ShowGameOverOverlay()
     {
         _gameOverShown = true;
 
-        // Stop gameplay + loops
+        // stop gameplay + loops
         _engine.State.IsPaused = true;
 
-        // MVVM overlay state
+        // mVVM overlay state
         _hud.IsPaused = false;
         _hud.IsGameOver = true;
 
         PauseButton.IsEnabled = false;
 
-        // Stop audio (crash SFX can finish playing)
+        // stop audio (crash SFX can finish playing)
         StopMusicAndReset();
         StopEngineRevAndReset();
         StopStarMusicAndReset();
 
-        // Update summary text (bound in XAML)
+        // update summary text (bound in XAML)
         _hud.UpdateGameOverSummary(_engine.State, _coinsHeld, FormatTime(_engine.State.TimeAlive));
 
-        // Stop updates and redraw once to show the overlay
+        // stop updates and redraw once to show the overlay
         _timer.Stop();
         CancelHintFade();
         GameView.Invalidate();
@@ -1088,7 +1090,7 @@ private void GameOverMenu_Clicked(object sender, EventArgs e)
 
     private void SelectCar(string file)
     {
-        // Prevent selecting cars you don't own
+        // prevent selecting cars you don't own
         if (!IsCarOwned(file))
             return;
 
@@ -1106,7 +1108,7 @@ private void GameOverMenu_Clicked(object sender, EventArgs e)
             "bluecar.png" => Preferences.Default.Get(PrefOwnedBlue, false),
             "greencar.png" => Preferences.Default.Get(PrefOwnedGreen, false),
 
-            // Custom is available if the file exists
+            // custom is available if the file exists
             CustomCarKey => File.Exists(Preferences.Default.Get(PrefCustomCarPath, string.Empty)),
 
             _ => true, // yellow (and any unknown) is always available
@@ -1144,10 +1146,10 @@ private void GameOverMenu_Clicked(object sender, EventArgs e)
 
     private void UpdateCoinsAndUnlockUI()
 {
-    // Menu/shop/settings labels
+    // menu/shop/settings labels
     UpdateEconomyLabels();
 
-    // Safety: never keep a locked car selected
+    // safety: never keep a locked car selected
     if (!IsCarOwned(_engine.State.SelectedCarSprite))
     {
         _engine.State.SelectedCarSprite = DefaultCar;
@@ -1156,7 +1158,7 @@ private void GameOverMenu_Clicked(object sender, EventArgs e)
         _ = _drawable.Sprites.SetCustomCarAsync(null);
     }
 
-    // Car tiles (make selected/owned/locked obvious)
+    // car tiles (make selected/owned/locked obvious)
     SetCarUi(CarYellowFrame, CarYellowButton, CarYellowUnlockLabel, DefaultCar);
     SetCarUi(CarPurpleFrame, CarRedButton, CarRedUnlockLabel, "purplecar.png");
     SetCarUi(CarBlueFrame, CarBlueButton, CarBlueUnlockLabel, "bluecar.png");
@@ -1174,7 +1176,7 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
 
     if (btn is not null)
     {
-        // Keep buttons clickable so locked cars can be purchased.
+        // keep buttons clickable so locked cars can be purchased.
         btn.IsEnabled = true;
         btn.Opacity = owned ? 1.0 : 0.55;
     }
@@ -1191,18 +1193,18 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
 
     if (frame is not null)
     {
-        // Selected: gold border, Owned: green border, Locked: grey border
+        // selected: gold border, Owned: green border, Locked: grey border
         frame.BorderColor = selected ? Colors.Gold : (owned ? Color.FromArgb("#4CAF50") : Color.FromArgb("#4A4A4A"));
         frame.BackgroundColor = selected ? Color.FromArgb("#252525") : Color.FromArgb("#141414");
     }
 }
 
-// XAML button handlers
+// xAML button handlers
     private void Play_Clicked(object sender, EventArgs e) => StartGameFromMenu();
 
     private async void Settings_Clicked(object sender, EventArgs e)
     {
-        // Settings live on a dedicated page now.
+        // settings live on a dedicated page now.
         await Shell.Current.GoToAsync("settings");
     }
 
@@ -1223,12 +1225,12 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
 
         if (_settingsOpenedFromPause)
         {
-            // Return to pause menu
+            // return to pause menu
             _hud.IsPaused = true;
         }
         else
         {
-            // Return to main menu
+            // return to main menu
             MainMenuOverlay.IsVisible = true;
         }
     }
@@ -1274,7 +1276,7 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
             if (string.IsNullOrWhiteSpace(ext))
                 ext = ".png";
 
-            // Copy into app data so we can read it reliably later.
+            // copy into app data so we can read it reliably later.
             var destPath = Path.Combine(FileSystem.AppDataDirectory, $"customcar{ext.ToLowerInvariant()}");
             await using (var src = await result.OpenReadAsync())
             await using (var dst = File.Open(destPath, FileMode.Create, FileAccess.Write))
@@ -1284,10 +1286,10 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
 
             Preferences.Default.Set(PrefCustomCarPath, destPath);
 
-            // Warm the sprite cache so it shows instantly.
+            // warm the sprite cache so it shows instantly.
             await _drawable.Sprites.SetCustomCarAsync(destPath);
 
-            // Select it
+            // select it
             _engine.State.SelectedCarSprite = CustomCarKey;
             Preferences.Default.Set(PrefSelectedCar, CustomCarKey);
 
@@ -1303,13 +1305,13 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
     private async void CarGreen_Clicked(object sender, EventArgs e) => await HandleCarClicked("greencar.png");
 
     // -----------------------
-    // Pause button
+    // pause button
     // -----------------------
     private void PauseButton_Clicked(object sender, EventArgs e)
     {
         if (_engine.State.IsGameOver) return;
 
-        // Use the PauseOverlay for controls; pause button only pauses.
+        // use the PauseOverlay for controls; pause button only pauses.
         if (!_engine.State.IsPaused)
             PauseGameLoop();
     }
@@ -1327,7 +1329,7 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
         PauseEngineRev();
         PauseStarMusic();
 
-        // Stop updates but redraw once to show the PAUSED overlay
+        // stop updates but redraw once to show the PAUSED overlay
         _timer.Stop();
         GameView.Invalidate();
     }
@@ -1351,7 +1353,7 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
 
 
     // -----------------------
-    // Pause overlay buttons
+    // pause overlay buttons
     // -----------------------
     private void PauseResume_Clicked(object sender, EventArgs e)
     {
@@ -1361,13 +1363,13 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
 
     private void PauseRestart_Clicked(object sender, EventArgs e)
     {
-        // Restart the run from scratch and continue playing
+        // restart the run from scratch and continue playing
         StartGameFromMenu();
     }
 
     private async void PauseSettings_Clicked(object sender, EventArgs e)
     {
-        // Settings live on a dedicated page now.
+        // settings live on a dedicated page now.
         await Shell.Current.GoToAsync("settings");
     }
 
@@ -1377,14 +1379,14 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
     }
 
     // -----------------------
-    // Invincibility (star) music switching
+    // invincibility (star) music switching
     // -----------------------
     private void OnInvincibilityStarted()
     {
-        // If SFX is off, don't switch to the star track.
+        // if SFX is off, don't switch to the star track.
         if (!_sfxEnabled) return;
 
-        // Pause normal audio, play star music from the beginning
+        // pause normal audio, play star music from the beginning
         PauseMusic();
         PauseEngineRev();
         RestartStarMusicFromBeginning();
@@ -1393,17 +1395,17 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
     private void OnInvincibilityEnded()
     {
         StopStarMusicAndReset();
-        // Resume normal audio if still playing
+        // resume normal audio if still playing
         EnsureMusicPlaying();
         EnsureEngineRevPlaying();
     }
 
     private void EnsureCorrectAudioForState()
     {
-        // If SFX is off, we never want the invincibility track to override normal music.
+        // if SFX is off, we never want the invincibility track to override normal music.
         if (_engine.State.IsInvincible && _sfxEnabled)
         {
-            // Star music overrides
+            // star music overrides
             PauseMusic();
             PauseEngineRev();
             if (_starMusicPlayer is not null && !_starMusicPlayer.IsPlaying)
@@ -1446,7 +1448,7 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
     }
 
     // -----------------------
-    // Hint fade logic
+    // hint fade logic
     // -----------------------
     private void UpdateHintForState(bool force)
     {
@@ -1475,7 +1477,7 @@ private void SetCarUi(Frame? frame, ImageButton? btn, Label? label, string sprit
             return;
         }
 
-        // Running: show controls briefly then fade
+        // running: show controls briefly then fade
         HintLabel.Text = "Drag left/right to change lanes";
         HintLabel.Opacity = 1;
         StartHintFade();

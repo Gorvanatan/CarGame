@@ -6,9 +6,9 @@ using Microsoft.Maui.Controls;
 namespace CarGame.ViewModels;
 
 /// <summary>
-/// Part 4A/4B: HUD + Pause/GameOver MVVM.
-/// Gameplay logic stays in the engine + code-behind; UI state is driven via bindable properties.
-/// Button presses are surfaced as commands that raise request events (handled in the page code-behind).
+/// part 4A/4B: HUD + Pause/GameOver MVVM.
+/// gameplay logic stays in the engine + code-behind; UI state is driven via bindable properties.
+/// button presses are surfaced as commands that raise request events (handled in the page code-behind).
 /// </summary>
 public sealed class GameHudViewModel : BaseViewModel
 {
@@ -33,7 +33,7 @@ public sealed class GameHudViewModel : BaseViewModel
     private string _finalCoinsHeldText = "Coins held: 0";
     private bool _isNewHighScore;
 
-    // Requests (handled by MainPage.xaml.cs)
+    // requests (handled by MainPage.xaml.cs)
     public event Action? PauseRequested;
     public event Action? ResumeRequested;
     public event Action? RestartRequested;
@@ -152,7 +152,7 @@ public sealed class GameHudViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// Pause button should only show when the run is active (not paused, not game over).
+    /// pause button should only show when the run is active (not paused, not game over).
     /// </summary>
     public bool CanPause => !IsInMainMenu && !IsPaused && !IsGameOver;
 
@@ -195,7 +195,7 @@ public sealed class GameHudViewModel : BaseViewModel
 
     public void UpdateFromState(GameState state)
     {
-        // During gameplay, keep HUD in sync.
+        // during gameplay, keep HUD in sync.
         Score = state.Score;
         HighScore = state.HighScore;
         CoinsThisRun = state.CoinsThisRun;

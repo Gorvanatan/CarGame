@@ -4,6 +4,7 @@ namespace CarGame.Services;
 
 public sealed class ProfileService : IProfileService
 {
+    // preference keys used to persist user progress and settings
     private const string PrefSelectedCar = "selected_car_sprite";
     private const string PrefCustomCarPath = "custom_car_path";
     private const string PrefHighScore = "highscore";
@@ -24,7 +25,7 @@ public sealed class ProfileService : IProfileService
 
     public ProfileService()
     {
-        // One-time migration for older builds: if legacy total coins exists but new fields are 0, seed them.
+        // one-time migration for older builds: if legacy total coins exists but new fields are 0, seed them
         var legacyTotal = Preferences.Default.Get(PrefTotalCoinsLegacy, 0);
         var held = Preferences.Default.Get(PrefCoinsHeld, 0);
         var earned = Preferences.Default.Get(PrefCoinsEarnedTotal, 0);
