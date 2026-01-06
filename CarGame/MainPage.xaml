@@ -7,9 +7,14 @@
              BackgroundColor="Black"
              Shell.NavBarIsVisible="False">
 
+    
+    
     <Grid>
         <!-- Game Canvas -->
         <GraphicsView x:Name="GameView" />
+
+        <Image Source="backgroundgarage.jpg"
+               Aspect="AspectFill" />
 
         <!-- HUD -->
         <Grid x:Name="HudGrid" Padding="16" RowDefinitions="Auto,*" InputTransparent="True">
@@ -264,7 +269,8 @@
         <!-- SHOP OVERLAY -->
         <Grid x:Name="ShopOverlay"
               BackgroundColor="#B0000000"
-              IsVisible="False" Padding="20">
+              IsVisible="False"
+              Padding="{OnPlatform Android='12', iOS='20', WinUI='20', MacCatalyst='20'}">
 
             <ScrollView>
 <Frame Padding="22"
@@ -272,7 +278,7 @@
                    HasShadow="True"
                    BackgroundColor="#202020"
                    BorderColor="#3A3A3A"
-                   HorizontalOptions="Center"
+                   HorizontalOptions="FillAndExpand"
                    VerticalOptions="Center">
 
                 <VerticalStackLayout Spacing="14">
@@ -407,11 +413,16 @@
                            TextColor="White"
                            HorizontalTextAlignment="Center" />
 
-                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="10" ColumnSpacing="12">
+                    <Grid ColumnDefinitions="*,Auto"
+                          RowDefinitions="Auto,Auto"
+                          RowSpacing="10"
+                          ColumnSpacing="12"
+                          HorizontalOptions="FillAndExpand">
                         <Label x:Name="HealthUpgradeLabel"
                                Text="Max Health: 3/6"
                                TextColor="#CFCFCF"
-                               FontSize="14" />
+                               FontSize="14"
+                               LineBreakMode="WordWrap" />
                         <Button x:Name="HealthUpgradeButton"
                                 Grid.Column="1"
                                 Text="Buy (50)"
@@ -421,7 +432,8 @@
                                Grid.Row="1"
                                Text="Invincibility: 10s"
                                TextColor="#CFCFCF"
-                               FontSize="14" />
+                               FontSize="14"
+                               LineBreakMode="WordWrap" />
                         <Button x:Name="InvUpgradeButton"
                                 Grid.Row="1"
                                 Grid.Column="1"
@@ -439,7 +451,8 @@
         <!-- SETTINGS OVERLAY -->
         <Grid x:Name="SettingsOverlay"
               BackgroundColor="#B0000000"
-              IsVisible="False" Padding="20">
+              IsVisible="False"
+              Padding="{OnPlatform Android='12', iOS='20', WinUI='20', MacCatalyst='20'}">
 
             <ScrollView>
 <Frame Padding="22"
@@ -447,10 +460,10 @@
                    HasShadow="True"
                    BackgroundColor="#202020"
                    BorderColor="#3A3A3A"
-                   HorizontalOptions="Center"
+                   HorizontalOptions="FillAndExpand"
                    VerticalOptions="Center">
 
-                <VerticalStackLayout Spacing="14" MaximumWidthRequest="360" HorizontalOptions="Center">
+                <VerticalStackLayout Spacing="14" HorizontalOptions="FillAndExpand">
                     <Label Text="Settings"
                            FontSize="22"
                            TextColor="White"
@@ -472,8 +485,7 @@
       RowDefinitions="Auto,Auto,Auto"
       ColumnSpacing="12"
       RowSpacing="10"
-      HorizontalOptions="Center"
-      WidthRequest="280">
+      HorizontalOptions="FillAndExpand">
 
     <Label Grid.Row="0" Grid.Column="0"
            Text="Volume"
@@ -493,6 +505,7 @@
             Minimum="0"
             Maximum="1"
             Value="0.5"
+            HorizontalOptions="FillAndExpand"
             ValueChanged="VolumeSlider_ValueChanged" />
 
     <Label Grid.Row="2" Grid.Column="0"

@@ -5,7 +5,13 @@
              BackgroundColor="Black"
              Shell.NavBarIsVisible="False">
 
-    <Grid Padding="24" RowDefinitions="Auto,*,Auto" RowSpacing="18">
+    <Grid>
+
+        <Image Source="backgroundgarage.jpg" Aspect="AspectFill" />
+
+        <BoxView Color="#66000000" />
+
+        <Grid Padding="24" RowDefinitions="Auto,*,Auto" RowSpacing="18">
 
         <Frame Grid.Row="0"
                Padding="26"
@@ -22,10 +28,7 @@
                        TextColor="White"
                        HorizontalTextAlignment="Center" />
 
-                <Label Text="Avoid cars • Collect coins"
-                       FontSize="14"
-                       TextColor="#CFCFCF"
-                       HorizontalTextAlignment="Center" />
+               
 
                 <Label Text="{Binding HighScoreText}"
                        FontSize="14"
@@ -55,12 +58,9 @@
             <Button Text="How to Play" Command="{Binding HowToCommand}" />
         </VerticalStackLayout>
 
-        <Label Grid.Row="2"
-               Text="Swipe left/right to change lanes • Avoid cars • Collect coins &amp; powerups"
-               TextColor="White"
-               Opacity="0.7"
-               HorizontalOptions="Center"
-               FontSize="12" />
+        
+
+        </Grid>
 
     </Grid>
 </ContentPage>

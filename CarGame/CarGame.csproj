@@ -58,7 +58,6 @@
 		<!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>
-
 	<!-- NOTE: Do not remove appiconfg.svg from the build.
 	     It is required for MAUI to generate the Android mipmap app icons (appicon/appicon_round). -->
 
