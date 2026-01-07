@@ -254,7 +254,7 @@ public partial class GamePage : ContentPage
             // music is independent of the SFX toggle
             if (_musicPlayer is not null) _musicPlayer.Volume = BaseMusicVol * master;
 
-            // sFX/loops follow the SFX toggle
+            // SFX/loops follow the SFX toggle
             if (_engineRevPlayer is not null) _engineRevPlayer.Volume = BaseEngineVol * master * sfxMult;
             if (_coinPlayer is not null) _coinPlayer.Volume = BaseCoinVol * master * sfxMult;
             if (_fuelPlayer is not null) _fuelPlayer.Volume = BaseFuelVol * master * sfxMult;
@@ -267,7 +267,7 @@ public partial class GamePage : ContentPage
         catch { }
     }
 
-    // ---- Engine event handlers ----
+    // Engine event handlers 
     private void OnCoinCollected()
     {
         // bank immediately
@@ -312,7 +312,7 @@ public partial class GamePage : ContentPage
         try { p.Stop(); p.Play(); } catch { }
     }
 
-    // ---- Music / audio helpers ----
+    // music / audio helpers
     private void EnsureMusicPlaying()
     {
         try

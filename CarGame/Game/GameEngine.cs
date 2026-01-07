@@ -30,8 +30,10 @@ public sealed class GameEngine
     private double _starSpawnT;
     private double _treeSpawnT;
 
-    // --- Spawn rules (no "queue" above the screen) ---
-    // caps prevent the game from flooding the screen if timers get small.
+    // spawns
+    // caps prevent the game from flooding the screen if timers get small
+    // max num of entities on screen at once
+    // more than 2 cars makes the game pretty hard
     private const int MaxEnemiesActive = 2;
     private const int MaxCoinsActive = 3;
     private const int MaxFuelActive = 1;
@@ -45,7 +47,7 @@ public sealed class GameEngine
     // prevents losing multiple lives in a single overlap
     private double _hitCooldown;
 
-    // persisted upgrade keys (set by Shop)
+    // persisted upgrade keys (set by shop)
     private const string PrefMaxHealth = "max_health"; // int (default 3)
     private const string PrefInvincibilityDurationSeconds = "invincibility_duration_seconds"; // int (default 6)
 
@@ -273,7 +275,7 @@ public sealed class GameEngine
 
         if (_enemySpawnT <= 0)
         {
-            // --- Enemies ---
+            // baddies
             // cap total active enemies and enforce per-lane spacing near the top.
             if (ActiveCount(EntityKind.Enemy) < MaxEnemiesActive && SpawnEnemy())
             {
@@ -283,14 +285,14 @@ public sealed class GameEngine
             }
             else
             {
-                // couldn't spawn due to caps/spacing — retry soon.
+                // couldn't spawn due to caps/spacing 
                 _enemySpawnT = 0.25;
             }
         }
 
 if (_coinSpawnT <= 0)
 {
-    // --- Coins ---
+    // coins
     if (ActiveCount(EntityKind.Coin) < MaxCoinsActive && SpawnCoin())
     {
         _coinSpawnT = RandomRange(1.0, 1.8);
@@ -304,7 +306,7 @@ if (_coinSpawnT <= 0)
 
 if (_fuelSpawnT <= 0)
 {
-    // --- Fuel ---
+    // fuel
     if (ActiveCount(EntityKind.Fuel) < MaxFuelActive && SpawnFuel())
     {
         _fuelSpawnT = RandomRange(12.0, 20.0);
@@ -317,7 +319,7 @@ if (_fuelSpawnT <= 0)
 
 if (_starSpawnT <= 0)
 {
-    // --- Star (invincibility) ---
+    //star (invincibility) 
     if (ActiveCount(EntityKind.Star) < MaxStarsActive && SpawnStar())
     {
         _starSpawnT = RandomRange(18.0, 32.0);
@@ -330,7 +332,7 @@ if (_starSpawnT <= 0)
 
         if (_treeSpawnT <= 0)
         {
-            // --- Trees (background decoration on the grass shoulders) ---
+            // trees (background decoration on the grass shoulders)
             if (ActiveCount(EntityKind.Tree) < MaxTreesActive && SpawnTree())
                 _treeSpawnT = RandomRange(1.4, 2.6);
             else
@@ -363,7 +365,7 @@ if (_starSpawnT <= 0)
                     // decoration: no gameplay effect
                     break;
                 case EntityKind.Enemy:
-                    // while invincible, you can plow through enemies.
+                    // while invincible, you can kill enemies.
                     if (State.IsInvincible)
                     {
                         State.Entities.RemoveAt(i);
@@ -425,9 +427,9 @@ if (_starSpawnT <= 0)
 
 private bool SpawnEnemy()
 {
-    // try each lane (shuffled) and choose the first one that satisfies:
-    // 1) lane spacing rule for enemies, and
-    // 2) does not overlap any existing entity at the spawn area.
+    
+    //  lane spacing rule for enemies, and
+    //  does not overlap any existing entity at the spawn area.
     Span<int> lanes = stackalloc int[3] { 0, 1, 2 };
     Shuffle(lanes, _rng);
 
@@ -457,13 +459,13 @@ private bool SpawnCoin()
 
 private bool SpawnFuel()
 {
-    // fuel is rarer/bigger — use more padding so it doesn't clip into other items.
+    // fuel is rarer
     return TrySpawnInAnyLane(EntityKind.Fuel, padding: 24);
 }
 
 private bool SpawnStar()
 {
-    // star is rare and should feel "clean" when it appears.
+    // star is rare 
     return TrySpawnInAnyLane(EntityKind.Star, padding: 26);
 }
 
@@ -513,6 +515,7 @@ private bool SpawnStar()
     }
 
 
+    // collisons
     private static bool Intersects(double ax, double ay, double aw, double ah,
                                    double bx, double by, double bw, double bh)
     {

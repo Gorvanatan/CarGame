@@ -11,10 +11,10 @@
 
         <BoxView Color="#66000000" />
 
-        <!-- Smaller padding on Android so upgrade row doesn't clip on narrow screens -->
+        <!-- smaller on Android so upgrade row doesn't clip on narrow screens -->
         <Grid Padding="{OnPlatform Android='12', iOS='20', WinUI='20', MacCatalyst='20'}" RowDefinitions="Auto,*">
 
-        <!-- Header -->
+        <!-- header -->
         <VerticalStackLayout Grid.Row="0" Spacing="6" HorizontalOptions="Center">
             <Label Text="Shop"
                    TextColor="White"
@@ -32,11 +32,11 @@
                    HorizontalTextAlignment="Center" />
         </VerticalStackLayout>
 
-        <!-- Body -->
+        <!-- body -->
         <ScrollView Grid.Row="1">
             <VerticalStackLayout Spacing="16" Padding="0,14,0,20" HorizontalOptions="FillAndExpand">
 
-                <!-- Cars -->
+                <!-- cars -->
                 <Label Text="Cars"
                        TextColor="White"
                        FontSize="18"
@@ -87,7 +87,7 @@
                     </CollectionView.ItemTemplate>
                 </CollectionView>
 
-                <!-- Custom car upload (still uses a picker in code-behind) -->
+                <!-- custom car upload  -->
                     <Button Text="Upload Custom Car"
                         WidthRequest="240"
                         HorizontalOptions="Center"
@@ -95,13 +95,13 @@
 
                     
 
-                <!-- Upgrades -->
+                <!-- upgrades -->
                 <Label Text="Upgrades"
                        TextColor="White"
                        FontSize="18"
                        HorizontalTextAlignment="Center" />
 
-                <!-- No fixed WidthRequest: lets the layout shrink on small Android screens -->
+                <!-- no fixed WidthRequest: lets the layout shrink on small Android screens -->
                 <Grid ColumnDefinitions="*,Auto"
                       RowDefinitions="Auto,Auto"
                       RowSpacing="10"

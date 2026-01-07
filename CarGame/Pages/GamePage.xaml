@@ -8,10 +8,10 @@
              Shell.NavBarIsVisible="False">
 
     <Grid>
-        <!-- Game Canvas -->
+        <!--  canvas -->
         <GraphicsView x:Name="GameView" />
 
-        <!-- HUD -->
+        <!-- hud -->
         <Grid Padding="16" RowDefinitions="Auto,*" InputTransparent="True">
 
             <Grid RowDefinitions="Auto,Auto,Auto"
@@ -21,7 +21,7 @@
                   HorizontalOptions="Fill"
                   VerticalOptions="Start">
 
-                <!-- Row 0 -->
+                <!-- row 0 -->
                 <Label Text="{Binding ScoreText}"
                        TextColor="White"
                        FontSize="18"
@@ -36,7 +36,7 @@
                        Grid.Column="1"
                        HorizontalTextAlignment="End" />
 
-                <!-- Row 1 (High score under Score so it never overlaps Pause) -->
+                <!-- row 1 (high score under score so it never overlaps pause) -->
                 <Label Text="{Binding HighScoreText}"
                        TextColor="White"
                        FontSize="14"
@@ -44,7 +44,7 @@
                        Grid.Column="0"
                        HorizontalTextAlignment="Start" />
 
-                <!-- Row 2 -->
+                <!-- row 2 -->
                 <Label Text="{Binding LivesText}"
                        TextColor="White"
                        FontSize="18"
@@ -70,7 +70,7 @@
                    Margin="0,0,0,30" />
         </Grid>
 
-        <!-- Pause button (hidden while paused / game over) -->
+        <!-- pause button (hidden while paused / game over) -->
         <Button Text="Pause"
                 WidthRequest="90"
                 HeightRequest="42"
@@ -80,7 +80,7 @@
                 Command="{Binding PauseCommand}"
                 IsVisible="{Binding CanPause}" />
 
-        <!-- PAUSE OVERLAY -->
+        <!-- pause menu -->
         <Grid BackgroundColor="#B0000000"
               IsVisible="{Binding IsPaused}"
               Padding="20">
@@ -131,7 +131,7 @@
             </ScrollView>
         </Grid>
 
-        <!-- GAME OVER OVERLAY -->
+        <!-- game over screen -->
         <Grid BackgroundColor="#B0000000"
               IsVisible="{Binding IsGameOver}"
               Padding="20">

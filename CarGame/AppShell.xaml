@@ -6,7 +6,7 @@
     xmlns:pages="clr-namespace:CarGame.Pages"
     Title="CarGame">
 
-    <!-- Start the app on the Menu page -->
+    <!-- start the app on the menu page -->
     <ShellContent
         Route="menu"
         ContentTemplate="{DataTemplate pages:MenuPage}" />

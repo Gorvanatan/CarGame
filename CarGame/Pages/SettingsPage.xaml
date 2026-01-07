@@ -11,7 +11,7 @@
 
         <BoxView Color="#66000000" />
 
-        <!-- Smaller padding on Android so the slider isn't clipped on narrow screens -->
+        <!-- smaller on Android so the slider isn't clipped on narrow screens -->
         <Grid Padding="{OnPlatform Android='16', iOS='24', WinUI='24', MacCatalyst='24'}" RowDefinitions="Auto,*,Auto" RowSpacing="18">
 
         <Label Grid.Row="0"

@@ -44,28 +44,6 @@ public sealed class GameDrawable : IDrawable
         DrawEntities(canvas);
 
         canvas.RestoreState();
-
-        // uI overlays (unscaled)
-        float viewWidth = dirtyRect.Width;
-        float viewHeight = dirtyRect.Height;
-
-        if (_engine.State.IsPaused && !_engine.State.IsGameOver)
-            DrawPaused(canvas, viewWidth, viewHeight);
-
-        if (_engine.State.IsGameOver)
-            DrawGameOver(canvas, viewWidth, viewHeight, _engine.State.IsNewHighScore);
-    }
-
-    private static void DrawPaused(ICanvas canvas, float canvasWidth, float canvasHeight)
-    {
-        // dim the screen
-        canvas.FillColor = new Color(0, 0, 0, 0.45f);
-        canvas.FillRectangle(0, 0, canvasWidth, canvasHeight);
-
-        canvas.FontColor = Colors.White;
-        canvas.FontSize = 44;
-        canvas.DrawString("PAUSED", 0, canvasHeight * 0.42f, canvasWidth, 70,
-            HorizontalAlignment.Center, VerticalAlignment.Center);
     }
 
     private void DrawBackground(ICanvas canvas, float worldWidth, float worldHeight)
@@ -212,26 +190,6 @@ public sealed class GameDrawable : IDrawable
                     }
                     break;
             }
-        }
-    }
-
-    private static void DrawGameOver(ICanvas canvas, float canvasWidth, float canvasHeight, bool isNewHighScore)
-    {
-        canvas.FontColor = Colors.White;
-        canvas.FontSize = 44;
-        canvas.DrawString("GAME OVER", 0, canvasHeight * 0.38f, canvasWidth, 70,
-            HorizontalAlignment.Center, VerticalAlignment.Center);
-
-        canvas.FontSize = 20;
-        canvas.DrawString("Returning to menu...", 0, canvasHeight * 0.46f, canvasWidth, 40,
-            HorizontalAlignment.Center, VerticalAlignment.Center);
-
-
-        if (isNewHighScore)
-        {
-            canvas.FontSize = 22;
-            canvas.DrawString("NEW HIGH SCORE!", 0, canvasHeight * 0.52f, canvasWidth, 40,
-                HorizontalAlignment.Center, VerticalAlignment.Center);
         }
     }
 }

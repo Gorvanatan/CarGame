@@ -1,6 +1,6 @@
 namespace CarGame.Game;
 
-// entity types that can appear in the game world
+// entity types that can appear in the game 
 public enum EntityKind
 {
     Enemy,
